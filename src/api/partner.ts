@@ -55,6 +55,15 @@ export interface QuoteLineInput {
 export const registerPartner = (input: RegisterPartnerInput) =>
   api<PartnerProfile>('/partner-registration', { method: 'POST', body: input });
 export const getPartnerMe = () => api<PartnerProfile>('/partner/me');
+export interface PartnerStats {
+  completedToday: number;
+  earnedToday: number;
+  completedTotal: number;
+  averageRating: number | null;
+  reviewCount: number;
+  activeJobs: number;
+}
+export const getPartnerStats = () => api<PartnerStats>('/partner/stats');
 export const updatePresence = (availability: PartnerProfile['availability'], lat?: number, lng?: number) =>
   api<PartnerProfile>('/partner/me/presence', { method: 'PATCH', body: { availability, lat, lng } });
 

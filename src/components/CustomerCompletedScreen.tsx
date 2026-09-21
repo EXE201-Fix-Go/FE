@@ -8,8 +8,6 @@ interface CustomerCompletedProps {
   onViewWarranty: () => void;
   /** Đơn thật từ backend (đã COMPLETED); không có → hiển thị mẫu. */
   order?: Order | null;
-  /** "Đã thanh toán" — xác nhận đưa tiền mặt cho thợ (RB-59). */
-  onConfirmPayment?: () => Promise<void>;
   /** Gửi đánh giá lên backend. */
   onSubmitReview?: (rating: number, feedback: string) => Promise<void>;
 }
@@ -18,13 +16,11 @@ export const CustomerCompletedScreen: React.FC<CustomerCompletedProps> = ({
   onBackToHome,
   onViewWarranty,
   order,
-  onConfirmPayment,
   onSubmitReview,
 }) => {
   const total = order?.quote?.totalAmount ?? order?.payment?.amount ?? 120000;
   const mechanicName = order?.partner?.fullName || DEFAULT_MECHANIC.name;
   const paid = order ? order.payment?.status === 'CONFIRMED' : true;
-  const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rating, setRating] = useState(5);
   const [selectedTags, setSelectedTags] = useState<string[]>([
@@ -62,18 +58,6 @@ export const CustomerCompletedScreen: React.FC<CustomerCompletedProps> = ({
     }
   };
 
-  const handlePay = async () => {
-    if (!onConfirmPayment) return;
-    setPaying(true);
-    setError(null);
-    try {
-      await onConfirmPayment();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Không xác nhận được thanh toán.');
-    } finally {
-      setPaying(false);
-    }
-  };
 
   const handleDownloadPdf = () => {
     setIsPdfDownloaded(true);
@@ -205,7 +189,7 @@ export const CustomerCompletedScreen: React.FC<CustomerCompletedProps> = ({
             <div className="flex items-center gap-1">
               <span className={`w-2 h-2 rounded-full ${paid ? 'bg-tertiary' : 'bg-error'}`}></span>
               <span className="font-label-sm text-[13px] text-on-surface font-semibold">
-                {order ? (paid ? 'Tiền mặt (đã xác nhận)' : 'Tiền mặt — chưa xác nhận') : 'MoMo QR (Thành công)'}
+                {order ? (paid ? 'Tiền mặt — thợ đã thu' : 'Tiền mặt — chờ thợ xác nhận') : 'MoMo QR (Thành công)'}
               </span>
             </div>
           </div>
@@ -226,18 +210,12 @@ export const CustomerCompletedScreen: React.FC<CustomerCompletedProps> = ({
           </span>
         </div>
 
-        {order && !paid && (
-          <button
-            type="button"
-            onClick={handlePay}
-            disabled={paying}
-            className="w-full h-12 rounded-xl bg-tertiary text-on-tertiary font-label-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all"
-          >
-            <span className={`material-symbols-outlined text-[20px] ${paying ? 'animate-spin' : ''}`}>
-              {paying ? 'progress_activity' : 'payments'}
-            </span>
-            <span>{paying ? 'Đang xác nhận…' : `Đã đưa ${formatVND(total)} cho thợ`}</span>
-          </button>
+        {order && (
+          <p className="font-label-sm text-[11px] text-center text-secondary">
+            {paid
+              ? `Thợ đã xác nhận thu ${formatVND(total)} tiền mặt khi hoàn tất.`
+              : 'Thợ sẽ xác nhận thu tiền mặt khi hoàn tất sửa chữa.'}
+          </p>
         )}
         {error && (
           <div role="alert" className="rounded-xl bg-error-container text-on-error-container font-body-sm px-[15px] py-2 flex items-center gap-2">

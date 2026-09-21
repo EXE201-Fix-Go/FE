@@ -22,11 +22,11 @@ import { EntryDestination, ScreenId, ServiceItem, UserRole } from './types';
 import { requestOtp, verifyOtp, logout, AppRole, AuthUser } from './api/auth';
 import { ApiError, apiConfigured, setOnUnauthorized } from './api/client';
 import {
-  Order, createOrder, confirmOrder, getOrder, getOrderStatus, cancelOrder, approveQuote, declineQuote, confirmPayment,
-  submitReview,
+  Order, createOrder, confirmOrder, getOrder, getOrderStatus, cancelOrder, approveQuote, declineQuote, submitReview,
 } from './api/orders';
 import {
-  Offer, PartnerProfile, getPartnerMe, updatePresence, listOffers, listJobs, acceptOffer, declineOffer,
+  Offer, PartnerProfile, PartnerStats, getPartnerMe, getPartnerStats, updatePresence, listOffers, listJobs, acceptOffer,
+  declineOffer,
   arriveAtOrder, startChecking, sendQuote, completeOrder, registerPartner, QuoteLineInput,
 } from './api/partner';
 import { ORDER_STATUS_LABEL, isTerminal } from './domain/status';
@@ -103,6 +103,7 @@ export default function App() {
 
   // ── Thợ: hồ sơ, lời mời, đơn đang làm ─────────────────────────────
   const [profile, setProfile] = useState<PartnerProfile | null>(null);
+  const [stats, setStats] = useState<PartnerStats | null>(null);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [jobs, setJobs] = useState<Offer[]>([]);
   const [partnerError, setPartnerError] = useState<string | null>(null);
@@ -275,10 +276,11 @@ export default function App() {
     if (partnerInFlight.current) return;
     partnerInFlight.current = true;
     try {
-      const [p, of, jb] = await Promise.all([getPartnerMe(), listOffers(), listJobs()]);
+      const [p, of, jb, st] = await Promise.all([getPartnerMe(), listOffers(), listJobs(), getPartnerStats().catch(() => null)]);
       setProfile(p);
       setOffers(of);
       setJobs(jb);
+      if (st) setStats(st);
       setPartnerError(
         p.verificationStatus !== 'APPROVED'
           ? 'Hồ sơ KYC đang chờ Fix&Go duyệt — bạn chưa nhận được đơn. (Admin duyệt qua API /admin/partners/{id}/verify)'
@@ -294,6 +296,7 @@ export default function App() {
   useEffect(() => {
     if (!live || activeScreen !== 'mechanic_dashboard') return;
     let cancelled = false;
+    partnerInFlight.current = false;   // vừa quay về dashboard: làm mới ngay, không chờ request cũ
     (async () => {
       // Lần đầu vào: nếu đã duyệt mà đang OFFLINE thì bật ONLINE tại vị trí pilot cho tiện demo.
       try {
@@ -517,11 +520,6 @@ export default function App() {
         {activeScreen === 'customer_completed' && (
           <CustomerCompletedScreen
             order={live ? currentOrder : undefined}
-            onConfirmPayment={
-              live && currentOrder
-                ? async () => setCurrentOrder(await confirmPayment(currentOrder.id))
-                : undefined
-            }
             onSubmitReview={
               live && currentOrder
                 ? async (rating, feedback) => {
@@ -558,6 +556,7 @@ export default function App() {
               live
                 ? {
                     profile,
+                    stats,
                     offers,
                     jobs,
                     error: partnerError,
@@ -620,6 +619,10 @@ export default function App() {
                     contactName: currentOrderContactName(activeOrder),
                     contactPhone: activeOrder.contactPhone,
                     approvedTotal: activeOrder.quote?.status === 'APPROVED' ? activeOrder.quote.totalAmount : null,
+                    callOutFee: activeOrder.callOutFee,
+                    serviceId: activeOrder.serviceId,
+                    extraServiceIds: activeOrder.extraServiceIds,
+                    quoteRevision: activeOrder.quote?.revisionNo ?? null,
                   }
                 : undefined
             }
@@ -634,7 +637,7 @@ export default function App() {
             onJobFinished={async () => {
               if (live && activeOrder) {
                 const o = await completeOrder(activeOrder.id);
-                alert(`Đã hoàn tất ${o.orderCode}. Thu ${o.payment?.amount.toLocaleString('vi-VN')} ₫ tiền mặt từ khách.`);
+                alert(`Đã hoàn tất ${o.orderCode}. Đã ghi nhận thu ${o.payment?.amount.toLocaleString('vi-VN')} ₫ tiền mặt từ khách.`);
                 setActiveOrder(null);
                 setActiveScreen('mechanic_dashboard');
               } else {

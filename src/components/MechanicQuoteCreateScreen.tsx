@@ -1,22 +1,53 @@
 import React, { useState } from 'react';
-import { DEFAULT_MECHANIC } from '../data';
+import { DEFAULT_MECHANIC, SERVICES } from '../data';
 import { QuoteLineInput } from '../api/partner';
+
+type Line = { id: string; name: string; price: number; checked: boolean; required: boolean; type: QuoteLineInput['itemType'] };
+
+const DEMO_LINES: Line[] = [
+  { id: 'callout', name: 'Phí xuất phát cứu hộ cố định', price: 30000, checked: true, required: true, type: 'SURCHARGE' },
+  { id: 'labor', name: 'Tiền công rút đinh & kiểm tra', price: 40000, checked: true, required: true, type: 'LABOR' },
+  { id: 'patch', name: 'Miếng vá nấm cao su Japan Tech', price: 50000, checked: true, required: false, type: 'PART' },
+  { id: 'night', name: 'Phụ phí an toàn ban đêm (Sau 22:00)', price: 20000, checked: true, required: false, type: 'SURCHARGE' },
+  { id: 'promo', name: 'Ưu đãi Fix&Go chào bạn mới', price: -20000, checked: true, required: false, type: 'DISCOUNT' },
+];
+
+/** Dòng báo giá sinh từ đơn thật: phí gọi thợ + dịch vụ chính + dịch vụ phụ khách chọn (giá niêm yết) + gợi ý thêm. */
+function linesFromOrder(callOutFee: number, serviceId: string, extraServiceIds: string[]): Line[] {
+  const svc = (code: string) => SERVICES.find((s) => s.id === code);
+  const main = svc(serviceId);
+  const lines: Line[] = [
+    { id: 'callout', name: 'Phí gọi thợ (khách đã xác nhận)', price: callOutFee, checked: true, required: true, type: 'SURCHARGE' },
+    { id: `svc:${serviceId}`, name: main?.name ?? serviceId, price: main?.price ?? 0, checked: true, required: true, type: 'LABOR' },
+    ...extraServiceIds.map((code) => {
+      const e = svc(code);
+      return { id: `svc:${code}`, name: `${e?.name ?? code} (khách chọn thêm)`, price: e?.price ?? 0, checked: true, required: false, type: 'LABOR' as const };
+    }),
+    { id: 'part', name: 'Linh kiện thay thế (nếu có)', price: 50000, checked: false, required: false, type: 'PART' },
+    { id: 'night', name: 'Phụ phí ban đêm (sau 22:00)', price: 20000, checked: false, required: false, type: 'SURCHARGE' },
+    { id: 'promo', name: 'Ưu đãi Fix&Go khách mới', price: -20000, checked: false, required: false, type: 'DISCOUNT' },
+  ];
+  return lines;
+}
 
 interface MechanicQuoteCreateProps {
   /** Gửi các dòng báo giá (không gồm phí gọi thợ — backend tự cộng). */
   onQuoteSent: (items: QuoteLineInput[]) => Promise<void> | void;
   onJobFinished: () => Promise<void> | void;
   onBackToNavigation: () => void;
-  /** Đơn thật: trạng thái để biết khách đã duyệt chưa. */
-  live?: { orderCode: string; status: string; contactName?: string | null; contactPhone?: string | null; approvedTotal?: number | null };
+  /** Đơn thật: trạng thái để biết khách đã duyệt chưa; dịch vụ để sinh dòng báo giá. */
+  live?: {
+    orderCode: string;
+    status: string;
+    contactName?: string | null;
+    contactPhone?: string | null;
+    approvedTotal?: number | null;
+    callOutFee: number;
+    serviceId: string;
+    extraServiceIds: string[];
+    quoteRevision?: number | null;
+  };
 }
-
-const LINE_TYPE: Record<string, QuoteLineInput['itemType']> = {
-  labor: 'LABOR',
-  patch: 'PART',
-  night: 'SURCHARGE',
-  promo: 'DISCOUNT',
-};
 
 export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
   onQuoteSent,
@@ -24,22 +55,24 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
   onBackToNavigation,
   live,
 }) => {
-  const [items, setItems] = useState([
-    { id: 'callout', name: 'Phí xuất phát cứu hộ cố định', price: 30000, checked: true, required: true },
-    { id: 'labor', name: 'Tiền công rút đinh & kiểm tra', price: 40000, checked: true, required: true },
-    { id: 'patch', name: 'Miếng vá nấm cao su Japan Tech', price: 50000, checked: true, required: false },
-    { id: 'night', name: 'Phụ phí an toàn ban đêm (Sau 22:00)', price: 20000, checked: true, required: false },
-    { id: 'promo', name: 'Ưu đãi Fix&Go chào bạn mới', price: -20000, checked: true, required: false },
-  ]);
+  const [items, setItems] = useState<Line[]>(() =>
+    live ? linesFromOrder(live.callOutFee, live.serviceId, live.extraServiceIds) : DEMO_LINES
+  );
 
   const [diagnosis, setDiagnosis] = useState('Thủng lốp do đinh tán 3cm • Cần vá nấm chịu lực');
   const [isSent, setIsSent] = useState(live ? live.status !== 'CHECKING' : false);
   const [isFixing, setIsFixing] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Đang soạn báo giá bổ sung (revision mới) sau khi khách đã duyệt bản trước (BR03 / C-02). */
+  const [revising, setRevising] = useState(false);
   const approved = live ? live.status === 'IN_PROGRESS' || live.status === 'PAUSED' : true;
+  const waiting = live ? live.status === 'WAITING_FOR_APPROVAL' || live.status === 'ADDITIONAL_QUOTE' : false;
+  // Bản đã gửi là bất biến: chỉ sửa được khi chưa gửi hoặc đang soạn revision mới.
+  const editable = !isSent || revising;
 
   const toggleItem = (id: string) => {
+    if (!editable) return;
     setItems((prev) =>
       prev.map((it) => (it.id === id && !it.required ? { ...it, checked: !it.checked } : it))
     );
@@ -53,14 +86,16 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
     const lines: QuoteLineInput[] = items
       .filter((it) => it.checked && it.id !== 'callout')
       .map((it) => ({
-        itemType: LINE_TYPE[it.id] ?? 'LABOR',
+        itemType: it.type,
         description: it.name,
         quantity: 1,
         unitPrice: Math.abs(it.price),
+        serviceId: it.id.startsWith('svc:') ? it.id.slice(4) : undefined,
       }));
     try {
       await onQuoteSent(lines);
       setIsSent(true);
+      setRevising(false);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Không gửi được báo giá.');
     } finally {
@@ -139,7 +174,9 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
           <h3 className="font-label-md text-label-md text-on-surface font-bold">
             Bảng kê chi phí sửa chữa
           </h3>
-          <span className="font-label-sm text-[11px] text-secondary">Bấm để chọn/bỏ</span>
+          <span className="font-label-sm text-[11px] text-secondary">
+            {editable ? 'Bấm để chọn/bỏ' : `Đã gửi${live?.quoteRevision ? ` (bản ${live.quoteRevision})` : ''} — không sửa được`}
+          </span>
         </div>
 
         <div className="space-y-2.5">
@@ -147,7 +184,9 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
             <div
               key={it.id}
               onClick={() => toggleItem(it.id)}
-              className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-colors border ${
+              className={`flex items-center justify-between p-2.5 rounded-lg transition-colors border ${
+                editable ? 'cursor-pointer' : 'cursor-default'
+              } ${
                 it.checked
                   ? 'bg-surface-container-low border-primary/20'
                   : 'bg-surface-container border-transparent opacity-60'
@@ -200,15 +239,28 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
             <span>{error}</span>
           </div>
         )}
-        {!isSent ? (
-          <button
-            onClick={handleSendToCustomer}
-            disabled={sending}
-            className="w-full h-14 bg-primary-container text-on-primary rounded-xl font-label-lg text-label-lg font-bold flex items-center justify-center gap-2 shadow-lg active:scale-98 transition-transform"
-          >
-            <span className={`material-symbols-outlined text-[22px] ${sending ? 'animate-spin' : ''}`}>{sending ? 'progress_activity' : 'send'}</span>
-            <span>GỬI BÁO GIÁ CHO KHÁCH DUYỆT ({totalPrice.toLocaleString('vi-VN')} ₫)</span>
-          </button>
+        {editable ? (
+          <div className="space-y-2">
+            <button
+              onClick={handleSendToCustomer}
+              disabled={sending}
+              className="w-full h-14 bg-primary-container text-on-primary rounded-xl font-label-lg text-label-lg font-bold flex items-center justify-center gap-2 shadow-lg active:scale-98 transition-transform"
+            >
+              <span className={`material-symbols-outlined text-[22px] ${sending ? 'animate-spin' : ''}`}>{sending ? 'progress_activity' : 'send'}</span>
+              <span>
+                {revising ? 'GỬI BÁO GIÁ BỔ SUNG' : 'GỬI BÁO GIÁ CHO KHÁCH DUYỆT'} ({totalPrice.toLocaleString('vi-VN')} ₫)
+              </span>
+            </button>
+            {revising && (
+              <button
+                type="button"
+                onClick={() => setRevising(false)}
+                className="w-full h-11 rounded-xl bg-surface-container text-on-surface font-label-md"
+              >
+                Hủy sửa, giữ bản đã duyệt
+              </button>
+            )}
+          </div>
         ) : (
           <div className="space-y-2">
             {approved ? (
@@ -225,6 +277,22 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
                   Đã gửi báo giá — đang chờ khách duyệt trên điện thoại…
                 </span>
               </div>
+            )}
+
+            {live && approved && (
+              <button
+                type="button"
+                onClick={() => setRevising(true)}
+                className="w-full h-12 rounded-xl bg-surface-container text-on-surface font-label-md flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-[20px]">add_circle</span>
+                Có phát sinh? Gửi báo giá bổ sung (khách duyệt lại)
+              </button>
+            )}
+            {waiting && (
+              <p className="font-label-sm text-[11px] text-center text-secondary">
+                Không thể sửa bản đã gửi. Nếu cần đổi, chờ khách quyết định rồi gửi bản bổ sung.
+              </p>
             )}
 
             <button

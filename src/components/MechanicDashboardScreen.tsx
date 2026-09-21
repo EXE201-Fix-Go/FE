@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { ASSETS } from '../data';
-import { Offer, PartnerProfile } from '../api/partner';
+import { Offer, PartnerProfile, PartnerStats } from '../api/partner';
 import { formatVND } from '../domain/money';
 import { ORDER_STATUS_LABEL } from '../domain/status';
 
 /** Dữ liệu thật từ backend; không có → chạy demo với đơn mẫu. */
 export interface MechanicDashboardLive {
   profile: PartnerProfile | null;
+  stats: PartnerStats | null;
   offers: Offer[];
   jobs: Offer[];
   error?: string | null;
@@ -204,10 +205,10 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
             </div>
             <div className="mt-space-sm">
               <span className="font-headline-lg-mobile text-headline-lg-mobile text-primary block tracking-tight font-extrabold">
-                480.000 ₫
+                {live ? formatVND(live.stats?.earnedToday ?? 0) : '480.000 ₫'}
               </span>
               <span className="font-body-sm text-[12px] text-secondary flex items-center gap-1 mt-0.5 font-medium">
-                <span className="font-label-md text-label-md text-on-surface font-bold">6</span> cuốc hoàn tất
+                <span className="font-label-md text-label-md text-on-surface font-bold">{live ? live.stats?.completedToday ?? 0 : 6}</span> cuốc hoàn tất
               </span>
             </div>
           </div>
@@ -225,13 +226,13 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
             <div className="mt-space-sm flex items-end justify-between">
               <div>
                 <span className="font-headline-lg-mobile text-headline-lg-mobile text-on-surface block tracking-tight font-extrabold">
-                  98%
+                  {live ? live.stats?.completedTotal ?? 0 : '98%'}
                 </span>
-                <span className="font-body-sm text-[12px] text-secondary">Tỷ lệ nhận</span>
+                <span className="font-body-sm text-[12px] text-secondary">{live ? 'Tổng cuốc' : 'Tỷ lệ nhận'}</span>
               </div>
               <div className="text-right">
                 <span className="font-headline-lg-mobile text-headline-lg-mobile text-on-surface flex items-center justify-end gap-0.5 font-extrabold">
-                  4.9
+                  {live ? (live.stats?.averageRating != null ? live.stats.averageRating.toFixed(1) : '—') : '4.9'}
                   <span
                     className="material-symbols-outlined text-[18px] text-primary"
                     style={{ fontVariationSettings: "'FILL' 1" }}
@@ -239,7 +240,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
                     star
                   </span>
                 </span>
-                <span className="font-body-sm text-[12px] text-secondary">52 đánh giá</span>
+                <span className="font-body-sm text-[12px] text-secondary">{live ? `${live.stats?.reviewCount ?? 0} đánh giá` : '52 đánh giá'}</span>
               </div>
             </div>
           </div>
