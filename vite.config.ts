@@ -3,10 +3,10 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
-export default defineConfig(({ command }) => {
+export default defineConfig(() => {
   return {
-    // GitHub Pages phục vụ tại /FE/ (project site). Dev vẫn ở '/'.
-    base: command === 'build' ? '/FE/' : '/',
+    // Vercel phục vụ ở root '/'.
+    base: '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
