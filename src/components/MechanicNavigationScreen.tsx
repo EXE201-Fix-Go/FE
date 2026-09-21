@@ -2,12 +2,16 @@ import React, { useState } from 'react';
 import { ASSETS } from '../data';
 
 interface MechanicNavigationProps {
-  onArrived: () => void;
+  /** Bấm "Đã tới nơi" — khi nối backend là async (ARRIVED → CHECKING). */
+  onArrived: () => Promise<void> | void;
+  /** Đơn thật (tên khách, địa chỉ, ghi chú); không có → mẫu. */
+  live?: { orderCode: string; contactName?: string | null; addressText: string; note?: string | null; serviceName: string };
   onBackToDashboard: () => void;
 }
 
 export const MechanicNavigationScreen: React.FC<MechanicNavigationProps> = ({
   onArrived,
+  live,
   onBackToDashboard,
 }) => {
   const [speed, setSpeed] = useState(32);
@@ -93,14 +97,14 @@ export const MechanicNavigationScreen: React.FC<MechanicNavigationProps> = ({
             <div>
               <div className="flex items-center gap-1.5">
                 <h3 className="font-headline-md text-headline-md text-on-surface font-bold">
-                  Trần Thị Mai Lan
+                  {live?.contactName || 'Trần Thị Mai Lan'}
                 </h3>
                 <span className="px-1.5 py-0.2 rounded bg-tertiary-container text-on-tertiary text-[10px] font-bold">
                   VIP
                 </span>
               </div>
               <p className="font-body-sm text-[12px] text-secondary mt-0.5">
-                Honda Vision 2022 • 59-P1 888.88
+                {live ? `${live.serviceName} • ${live.orderCode}` : 'Honda Vision 2022 • 59-P1 888.88'}
               </p>
             </div>
           </div>
@@ -131,10 +135,10 @@ export const MechanicNavigationScreen: React.FC<MechanicNavigationProps> = ({
               Điểm đến cứu hộ
             </span>
             <span className="font-body-sm text-[13.5px] text-on-surface font-semibold block">
-              242 Cống Quỳnh, P. Phạm Ngũ Lão, Q.1
+              {live ? live.addressText : '242 Cống Quỳnh, P. Phạm Ngũ Lão, Q.1'}
             </span>
             <span className="font-body-sm text-[12px] text-primary mt-0.5 block">
-              Ghi chú: Xe Vision đỏ dựng trước cổng Circle K
+              Ghi chú: {live ? live.note || '—' : 'Xe Vision đỏ dựng trước cổng Circle K'}
             </span>
           </div>
         </div>

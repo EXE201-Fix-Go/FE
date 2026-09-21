@@ -6,7 +6,11 @@ interface CustomerRadarSearchingProps {
   service: ServiceItem;
   address: string;
   onCancel: () => void;
-  onMechanicMatched: () => void;
+  /** Chỉ dùng ở chế độ demo; khi nối backend, App tự chuyển màn theo trạng thái đơn. */
+  onMechanicMatched?: () => void;
+  /** Mã đơn thật + dòng trạng thái từ backend (đang phát tín hiệu vòng mấy…). */
+  orderCode?: string;
+  statusText?: string;
 }
 
 export const CustomerRadarSearchingScreen: React.FC<CustomerRadarSearchingProps> = ({
@@ -14,8 +18,10 @@ export const CustomerRadarSearchingScreen: React.FC<CustomerRadarSearchingProps>
   address,
   onCancel,
   onMechanicMatched,
+  orderCode,
+  statusText,
 }) => {
-  const [seconds, setSeconds] = useState(38);
+  const [seconds, setSeconds] = useState(0);
   const [tickerIndex, setTickerIndex] = useState(0);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
@@ -118,7 +124,7 @@ export const CustomerRadarSearchingScreen: React.FC<CustomerRadarSearchingProps>
             className="absolute bottom-4 left-14 flex flex-col items-center animate-pulse cursor-pointer"
             style={{ animationDuration: '1.8s', animationDelay: '0.9s' }}
             onClick={onMechanicMatched}
-            title="Bấm để kết nối ngay với thợ Tuấn"
+            title={onMechanicMatched ? 'Bấm để kết nối ngay với thợ Tuấn' : undefined}
           >
             <div className="w-8 h-8 rounded-full bg-tertiary-container text-on-tertiary-container flex items-center justify-center shadow-md ring-2 ring-tertiary-fixed">
               <span className="material-symbols-outlined text-[16px]">two_wheeler</span>
@@ -172,14 +178,25 @@ export const CustomerRadarSearchingScreen: React.FC<CustomerRadarSearchingProps>
 
       {/* Content & Control Deck */}
       <div className="px-gutter -mt-4 relative z-20 flex flex-col gap-space-md">
-        {/* Fast Action trigger to simulate match */}
-        <button
-          onClick={onMechanicMatched}
-          className="w-full py-3 px-3 rounded-xl bg-tertiary text-on-tertiary font-label-sm text-[13px] leading-snug font-bold flex items-center justify-center gap-2 shadow-md active:scale-98 transition-transform"
-        >
-          <span className="material-symbols-outlined text-[18px]">verified</span>
-          <span>Thợ Nguyễn Văn Tuấn (450m) vừa nhận đơn! Bấm để xem trực tiếp →</span>
-        </button>
+        {onMechanicMatched ? (
+          /* Demo: bấm để giả lập có thợ nhận */
+          <button
+            onClick={onMechanicMatched}
+            className="w-full py-3 px-3 rounded-xl bg-tertiary text-on-tertiary font-label-sm text-[13px] leading-snug font-bold flex items-center justify-center gap-2 shadow-md active:scale-98 transition-transform"
+          >
+            <span className="material-symbols-outlined text-[18px]">verified</span>
+            <span>Thợ Nguyễn Văn Tuấn (450m) vừa nhận đơn! Bấm để xem trực tiếp →</span>
+          </button>
+        ) : (
+          /* Live: trạng thái thật từ backend */
+          <div className="w-full py-3 px-[15px] rounded-xl bg-surface-container-lowest shadow-sm flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="material-symbols-outlined text-[20px] text-primary animate-pulse">cell_tower</span>
+              <span className="font-body-sm text-on-surface-variant truncate">{statusText ?? 'Đang phát tín hiệu tới thợ gần bạn…'}</span>
+            </div>
+            {orderCode && <span className="font-label-sm text-secondary shrink-0">{orderCode}</span>}
+          </div>
+        )}
 
         {/* Timer & Live Reassurance Counter Card */}
         <div className="rounded-xl bg-surface-container-lowest p-space-md shadow-md flex items-center justify-between border border-surface-container">

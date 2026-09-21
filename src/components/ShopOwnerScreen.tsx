@@ -1,8 +1,18 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { listStaff, inviteStaff, getPartnerMe, Staff as ApiStaff } from '../api/partner';
 
 interface ShopOwnerScreenProps {
   onBack: () => void;
+  /** true → đọc/ghi nhân viên qua backend (chủ tiệm thật). */
+  live?: boolean;
 }
+
+const fromApi = (a: ApiStaff): Staff => ({
+  id: a.userId,
+  name: a.fullName || a.phone || 'Thợ',
+  role: 'Thợ phụ',
+  status: a.verificationStatus !== 'APPROVED' ? 'Chờ xác nhận' : a.availability === 'ONLINE' ? 'Đang trực' : 'Đang nghỉ',
+});
 
 type Staff = {
   id: string;
@@ -15,11 +25,23 @@ type Staff = {
 const initials = (n: string) =>
   n.trim().split(/\s+/).slice(-2).map((w) => w[0]).join('').toUpperCase();
 
-export const ShopOwnerScreen: React.FC<ShopOwnerScreenProps> = ({ onBack }) => {
-  const [staff, setStaff] = useState<Staff[]>([
-    { id: '1', name: 'Nguyễn Văn Tuấn', role: 'Thợ chính', status: 'Đang trực', rating: 4.9 },
-    { id: '2', name: 'Trần Minh Phúc', role: 'Thợ phụ', status: 'Đang nghỉ', rating: 4.7 },
-  ]);
+export const ShopOwnerScreen: React.FC<ShopOwnerScreenProps> = ({ onBack, live }) => {
+  const [staff, setStaff] = useState<Staff[]>(
+    live
+      ? []
+      : [
+          { id: '1', name: 'Nguyễn Văn Tuấn', role: 'Thợ chính', status: 'Đang trực', rating: 4.9 },
+          { id: '2', name: 'Trần Minh Phúc', role: 'Thợ phụ', status: 'Đang nghỉ', rating: 4.7 },
+        ]
+  );
+  const [shopName, setShopName] = useState('Tiệm Sửa Xe Anh Ba');
+  useEffect(() => {
+    if (!live) return;
+    getPartnerMe().then((p) => p.shopName && setShopName(p.shopName)).catch(() => {});
+    listStaff()
+      .then((list) => setStaff(list.map(fromApi)))
+      .catch((e: unknown) => setErr(e instanceof Error ? e.message : 'Không tải được danh sách thợ.'));
+  }, [live]);
   const [showAdd, setShowAdd] = useState(false);
   const [fName, setFName] = useState('');
   const [fPhone, setFPhone] = useState('');
@@ -28,13 +50,22 @@ export const ShopOwnerScreen: React.FC<ShopOwnerScreenProps> = ({ onBack }) => {
 
   const activeCount = staff.filter((s) => s.status === 'Đang trực').length;
 
-  const addStaff = () => {
+  const addStaff = async () => {
     if (!fName.trim()) return setErr('Nhập tên thợ trước.');
     if (fPhone.replace(/\D/g, '').length < 9) return setErr('Số điện thoại chưa hợp lệ.');
-    setStaff((s) => [
-      ...s,
-      { id: `${Date.now()}`, name: fName.trim(), role: fRole, status: 'Chờ xác nhận' },
-    ]);
+    if (live) {
+      try {
+        const list = await inviteStaff(fPhone, fName.trim());
+        setStaff(list.map(fromApi));
+      } catch (e: unknown) {
+        return setErr(e instanceof Error ? e.message : 'Không thêm được thợ.');
+      }
+    } else {
+      setStaff((s) => [
+        ...s,
+        { id: `${Date.now()}`, name: fName.trim(), role: fRole, status: 'Chờ xác nhận' },
+      ]);
+    }
     setFName('');
     setFPhone('');
     setFRole('Thợ phụ');
@@ -88,7 +119,7 @@ export const ShopOwnerScreen: React.FC<ShopOwnerScreenProps> = ({ onBack }) => {
               <span className="material-symbols-outlined text-[26px]">store</span>
             </div>
             <div className="min-w-0 flex-1">
-              <p className="font-headline-md text-[18px] truncate">Tiệm Sửa Xe Anh Ba</p>
+              <p className="font-headline-md text-[18px] truncate">{shopName}</p>
               <p className="text-[12px] text-inverse-on-surface/70 truncate">
                 Mã tiệm #FG-SHOP-01 · 242 Cống Quỳnh, Q.1
               </p>

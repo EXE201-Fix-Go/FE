@@ -1,19 +1,48 @@
 import React, { useState, useEffect } from 'react';
 import { ASSETS } from '../data';
+import { Offer, PartnerProfile } from '../api/partner';
+import { formatVND } from '../domain/money';
+import { ORDER_STATUS_LABEL } from '../domain/status';
+
+/** Dữ liệu thật từ backend; không có → chạy demo với đơn mẫu. */
+export interface MechanicDashboardLive {
+  profile: PartnerProfile | null;
+  offers: Offer[];
+  jobs: Offer[];
+  error?: string | null;
+  onAccept: (assignmentId: string) => Promise<void>;
+  onDecline: (assignmentId: string) => Promise<void>;
+  onOpenJob: (job: Offer) => void;
+  onToggleReady: (ready: boolean) => Promise<void>;
+}
 
 interface MechanicDashboardProps {
   onAcceptJob: () => void;
   onLogout: () => void;
+  live?: MechanicDashboardLive;
 }
 
 export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
   onAcceptJob,
   onLogout,
+  live,
 }) => {
   const [isReady, setIsReady] = useState(true);
   const [timeLeft, setTimeLeft] = useState(12);
   const totalTime = 15;
   const [isJobRejected, setIsJobRejected] = useState(false);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!live) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [live]);
+  const offer: Offer | null = live ? live.offers[0] ?? null : null;
+  const showCard = live ? offer !== null : !isJobRejected;
+  const secsLeft = offer?.expiresAt ? Math.max(0, Math.round((new Date(offer.expiresAt).getTime() - now) / 1000)) : timeLeft;
+  const readyNow = live ? live.profile?.availability === 'ONLINE' : isReady;
+  const displayName = live?.profile?.fullName || 'Nguyễn Văn Tuấn';
   const [isJobAccepting, setIsJobAccepting] = useState(false);
 
   useEffect(() => {
@@ -24,16 +53,47 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
     return () => clearInterval(timer);
   }, [isJobRejected, timeLeft]);
 
-  const progressPercent = Math.max(0, (timeLeft / totalTime) * 100);
+  const progressPercent = live ? Math.min(100, (secsLeft / 90) * 100) : Math.max(0, (timeLeft / totalTime) * 100);
 
-  const handleAccept = () => {
+  const handleAccept = async () => {
     setIsJobAccepting(true);
+    setLiveError(null);
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
       navigator.vibrate([100, 50, 200]);
+    }
+    if (live && offer) {
+      try {
+        await live.onAccept(offer.assignmentId);
+      } catch (e: unknown) {
+        setLiveError(e instanceof Error ? e.message : 'Không nhận được đơn.');
+      } finally {
+        setIsJobAccepting(false);
+      }
+      return;
     }
     setTimeout(() => {
       onAcceptJob();
     }, 800);
+  };
+
+  const handleDecline = () => {
+    if (live && offer) {
+      live.onDecline(offer.assignmentId).catch((e: unknown) =>
+        setLiveError(e instanceof Error ? e.message : 'Không từ chối được.')
+      );
+      return;
+    }
+    setIsJobRejected(true);
+  };
+
+  const handleToggleReady = () => {
+    if (live) {
+      live.onToggleReady(!readyNow).catch((e: unknown) =>
+        setLiveError(e instanceof Error ? e.message : 'Không đổi được trạng thái.')
+      );
+      return;
+    }
+    setIsReady(!isReady);
   };
 
   return (
@@ -51,7 +111,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
               <div className="flex flex-col">
                 <div className="flex items-center gap-space-xs">
                   <span className="font-label-lg text-label-lg text-on-surface leading-none font-bold">
-                    Anh Tuấn
+                    {displayName}
                   </span>
                   <span className="px-1.5 py-0.5 rounded-full bg-secondary-container text-on-secondary-fixed font-label-sm text-[10px] leading-none uppercase font-bold">
                     Đội 1 • Q.1
@@ -66,9 +126,9 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
             <div className="flex items-center gap-space-sm">
               <button
                 aria-label="Trạng thái trực tuyến"
-                onClick={() => setIsReady(!isReady)}
+                onClick={handleToggleReady}
                 className={`min-h-[40px] px-3 py-1.5 rounded-full flex items-center gap-1.5 active:scale-95 transition-all shadow-xs ${
-                  isReady
+                  readyNow
                     ? 'bg-tertiary-fixed text-on-tertiary-fixed font-bold'
                     : 'bg-surface-container text-secondary'
                 }`}
@@ -76,11 +136,11 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
               >
                 <span
                   className={`w-2.5 h-2.5 rounded-full ${
-                    isReady ? 'bg-tertiary animate-pulse' : 'bg-secondary'
+                    readyNow ? 'bg-tertiary animate-pulse' : 'bg-secondary'
                   }`}
                 ></span>
                 <span className="font-label-sm text-[11px] uppercase tracking-wide font-bold">
-                  {isReady ? 'Sẵn sàng' : 'Tạm nghỉ'}
+                  {readyNow ? 'Sẵn sàng' : 'Tạm nghỉ'}
                 </span>
               </button>
 
@@ -98,6 +158,37 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
 
       {/* Main Content */}
       <main className="flex flex-col relative w-full pt-20 px-gutter gap-space-md mt-2">
+        {(live?.error || liveError) && (
+          <div role="alert" className="rounded-xl bg-error-container text-on-error-container font-body-sm px-[15px] py-2 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px]">error</span>
+            <span>{live?.error || liveError}</span>
+          </div>
+        )}
+        {live && live.jobs.length > 0 && (
+          <section className="bg-surface-container-lowest rounded-xl p-[15px] shadow-sm border border-tertiary/30 flex flex-col gap-2">
+            <h3 className="font-label-lg text-on-surface font-bold flex items-center gap-2">
+              <span className="material-symbols-outlined text-[20px] text-tertiary">build_circle</span>
+              Đơn đang thực hiện
+            </h3>
+            {live.jobs.map((j) => (
+              <button
+                key={j.assignmentId}
+                type="button"
+                onClick={() => live.onOpenJob(j)}
+                className="w-full text-left rounded-lg bg-surface-container-low p-[15px] flex items-center justify-between gap-2 active:scale-[0.99]"
+              >
+                <div className="min-w-0">
+                  <div className="font-label-md text-on-surface font-bold truncate">{j.serviceName}</div>
+                  <div className="font-label-sm text-[11px] text-secondary font-mono">{j.orderCode}</div>
+                  <div className="font-body-sm text-[12px] text-secondary truncate">{j.addressText}</div>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-tertiary-container text-on-tertiary-container font-label-sm text-[11px] font-bold shrink-0">
+                  {ORDER_STATUS_LABEL[j.orderStatus] ?? j.orderStatus}
+                </span>
+              </button>
+            ))}
+          </section>
+        )}
 
         {/* Thống Kê Nhanh Hôm Nay (Bento Dashboard Grid) */}
         <section className="grid grid-cols-2 gap-space-sm">
@@ -155,7 +246,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
         </section>
 
         {/* Flash Card: Cuốc Cứu Hộ Khẩn Cấp Mới (Incoming Job Radar) */}
-        {!isJobRejected ? (
+        {showCard ? (
           <section
             className="bg-surface-container-lowest rounded-xl p-space-md shadow-xl relative overflow-hidden transition-all duration-300 border border-primary/20"
             id="incoming-order-card"
@@ -183,11 +274,11 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
                       Khẩn cấp
                     </span>
                     <span className="font-label-sm text-[11px] text-secondary font-mono font-bold">
-                      Mã: #HG-9021
+                      Mã: {offer ? offer.orderCode : '#HG-9021'}
                     </span>
                   </div>
                   <h2 className="font-headline-md text-headline-md text-on-surface mt-0.5 leading-snug font-bold">
-                    Vá lốp lưu động
+                    {offer ? offer.serviceName : 'Vá lốp lưu động'}
                   </h2>
                 </div>
               </div>
@@ -199,7 +290,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
                 </span>
                 <div className="flex items-baseline gap-0.5 mt-0.5">
                   <span className="font-data-metric-md text-[20px] text-primary leading-none font-extrabold">
-                    {timeLeft}
+                    {secsLeft}
                   </span>
                   <span className="font-label-sm text-[11px] text-primary font-bold">s</span>
                 </div>
@@ -213,7 +304,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
                   Ước tính thu nhập
                 </span>
                 <span className="font-headline-lg-mobile text-headline-lg-mobile text-primary tracking-tight font-extrabold">
-                  95.000 ₫ - 120.000 ₫
+                  {offer ? `${formatVND(offer.callOutFee)} + công` : '95.000 ₫ - 120.000 ₫'}
                 </span>
               </div>
               <div className="text-right">
@@ -233,11 +324,11 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-label-lg text-label-lg text-on-surface font-bold">
-                      1.2 km
+                      {offer ? `Vòng phát ${offer.roundNo}` : '1.2 km'}
                     </span>
                     <span className="w-1 h-1 rounded-full bg-secondary"></span>
                     <span className="font-label-md text-label-md text-tertiary font-bold">
-                      ~4 phút xe máy
+                      {offer ? 'trong bán kính của bạn' : '~4 phút xe máy'}
                     </span>
                   </div>
                   <p className="font-body-sm text-[12px] text-secondary truncate">
@@ -253,7 +344,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="font-label-md text-label-md text-on-surface font-bold block">
-                    242 Cống Quỳnh, P. Phạm Ngũ Lão, Q.1
+                    {offer ? offer.addressText : '242 Cống Quỳnh, P. Phạm Ngũ Lão, Q.1'}
                   </span>
                   <span className="font-body-sm text-[12px] text-secondary block mt-0.5">
                     Vị trí nhận diện: Trước cửa hàng tiện lợi Circle K
@@ -275,7 +366,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
                       chat
                     </span>
                     <p className="font-body-sm text-[12.5px] text-on-surface italic leading-snug">
-                      "Bị cán đinh gần ngã 4, xe hết hơi xẹp lép không dắt được. Cần hỗ trợ vá nấm gấp ạ!"
+                      "{offer ? offer.note || 'Không có ghi chú' : 'Bị cán đinh gần ngã 4, xe hết hơi xẹp lép không dắt được. Cần hỗ trợ vá nấm gấp ạ!'}"
                     </p>
                   </div>
                 </div>
@@ -286,7 +377,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
             <div className="pt-space-sm flex items-center gap-space-sm">
               {/* Nút Từ chối */}
               <button
-                onClick={() => setIsJobRejected(true)}
+                onClick={handleDecline}
                 className="min-h-[56px] px-space-md rounded-xl bg-surface-container text-on-surface font-label-lg text-label-lg active:scale-95 transition-transform flex items-center justify-center shrink-0 font-bold"
                 type="button"
               >
@@ -321,19 +412,27 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
             <span className="material-symbols-outlined text-[36px] text-secondary">
               notifications_paused
             </span>
-            <h3 className="font-headline-md text-on-surface font-bold">Đã bỏ qua đơn này</h3>
+            <h3 className="font-headline-md text-on-surface font-bold">
+              {live ? (readyNow ? 'Đang chờ đơn mới…' : 'Bạn đang tạm nghỉ') : 'Đã bỏ qua đơn này'}
+            </h3>
             <p className="font-body-sm text-[12.5px] text-secondary">
-              Hệ thống đang quét các sự cố tiếp theo xung quanh khu vực Quận 1.
+              {live
+                ? readyNow
+                  ? 'Khi khách gần bạn đặt cứu hộ, đơn sẽ hiện ở đây (tự làm mới mỗi 3 giây).'
+                  : 'Bật "Sẵn sàng" ở góc trên để nhận đơn.'
+                : 'Hệ thống đang quét các sự cố tiếp theo xung quanh khu vực Quận 1.'}
             </p>
-            <button
-              onClick={() => {
-                setIsJobRejected(false);
-                setTimeLeft(15);
-              }}
-              className="px-3 py-1.5 rounded-lg bg-primary-fixed text-on-primary-fixed font-label-sm text-[12px] font-bold"
-            >
-              Mô phỏng lại đơn mới
-            </button>
+            {!live && (
+              <button
+                onClick={() => {
+                  setIsJobRejected(false);
+                  setTimeLeft(15);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-primary-fixed text-on-primary-fixed font-label-sm text-[12px] font-bold"
+              >
+                Mô phỏng lại đơn mới
+              </button>
+            )}
           </div>
         )}
 

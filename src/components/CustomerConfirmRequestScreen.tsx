@@ -8,7 +8,8 @@ interface CustomerConfirmRequestProps {
   selectedService: ServiceItem;
   currentAddress: string;
   onBack: () => void;
-  onConfirmDispatch: (note: string) => void;
+  /** Gửi đơn lên backend; ném lỗi nếu thất bại → màn báo và cho thử lại. */
+  onConfirmDispatch: (note: string, extraServiceIds: string[], photoUrls: string[]) => Promise<void>;
   onChangeService: () => void;
   onEditAddress: () => void;
 }
@@ -24,6 +25,7 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
   const [note, setNote] = useState('Xe Honda Vision đỏ dựng trước cổng Circle K');
   const [isRotating, setIsRotating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Dịch vụ thêm (ngoài dịch vụ chính chọn từ trang chủ)
   const [extra, setExtra] = useState<string[]>([]);
@@ -48,11 +50,16 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
     setTimeout(() => setIsRotating(false), 400);
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     setIsSubmitting(true);
-    setTimeout(() => {
-      onConfirmDispatch(note);
-    }, 600);
+    setSubmitError(null);
+    try {
+      // Ảnh hiện trường: prototype chưa có upload — gửi URL tạm (app thật đẩy lên Cloudinary trước, BRD §8).
+      await onConfirmDispatch(note, extra, photos.map((p) => p.url));
+    } catch (e: unknown) {
+      setSubmitError(e instanceof Error ? e.message : 'Không gửi được yêu cầu.');
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -348,6 +355,12 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
 
         {/* Main Full-Width Thumb CTA Action */}
         <div className="pt-1 flex flex-col gap-2">
+          {submitError && (
+            <div role="alert" className="rounded-xl bg-error-container text-on-error-container font-body-sm px-[15px] py-2 flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px]">error</span>
+              <span>{submitError}</span>
+            </div>
+          )}
           <button
             onClick={handleConfirm}
             disabled={isSubmitting}

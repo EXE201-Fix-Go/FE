@@ -1,27 +1,51 @@
 import React, { useState } from 'react';
 import { ASSETS, DEFAULT_MECHANIC } from '../data';
+import { Quote } from '../api/orders';
+import { formatVND } from '../domain/money';
 
 interface CustomerQuoteReviewProps {
-  onAccept: () => void;
-  onDecline: () => void;
+  /** Duyệt/từ chối trên backend; ném lỗi nếu thất bại. */
+  onAccept: () => Promise<void> | void;
+  onDecline: () => Promise<void> | void;
+  /** Báo giá thật từ backend; không có → hiển thị mẫu. */
+  quote?: Quote | null;
+  orderCode?: string;
+  mechanicName?: string | null;
 }
+
+const ITEM_TYPE_LABEL: Record<string, string> = {
+  LABOR: 'Tiền công',
+  PART: 'Linh kiện / vật tư',
+  SURCHARGE: 'Phụ phí',
+  DISCOUNT: 'Giảm giá',
+  SUPPORT: 'Hỗ trợ (dắt / kéo / gửi xe)',
+};
 
 export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
   onAccept,
   onDecline,
+  quote,
+  orderCode,
+  mechanicName,
 }) => {
   const [isAccepting, setIsAccepting] = useState(false);
   const [isAccepted, setIsAccepted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const total = quote ? quote.totalAmount : 120000;
+  const callOutFee = quote ? quote.callOutFeeAmount : 30000;
+  const displayName = mechanicName || DEFAULT_MECHANIC.name;
 
-  const handleAcceptClick = () => {
+  const handleAcceptClick = async () => {
     setIsAccepting(true);
-    setTimeout(() => {
-      setIsAccepting(false);
+    setError(null);
+    try {
+      await onAccept();
       setIsAccepted(true);
-      setTimeout(() => {
-        onAccept();
-      }, 700);
-    }, 900);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Không duyệt được báo giá.');
+    } finally {
+      setIsAccepting(false);
+    }
   };
 
   return (
@@ -54,7 +78,7 @@ export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
         <div className="flex items-center gap-space-md">
           <div className="relative flex-shrink-0">
             <img
-              alt={`Thợ sửa xe ${DEFAULT_MECHANIC.name}`}
+              alt={`Thợ sửa xe ${displayName}`}
               className="w-14 h-14 rounded-full object-cover shadow-sm"
               src={DEFAULT_MECHANIC.avatar}
             />
@@ -65,7 +89,7 @@ export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between">
               <h3 className="font-headline-md text-headline-md text-on-surface truncate font-bold">
-                {DEFAULT_MECHANIC.name}
+                {displayName}
               </h3>
               <span className="flex items-center gap-0.5 px-2 py-0.5 rounded bg-primary-fixed text-on-primary-fixed font-label-sm text-label-sm font-bold">
                 <span
@@ -107,10 +131,60 @@ export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
             Bảng kê chi tiết hạng mục
           </span>
           <span className="font-label-sm text-[11px] text-secondary bg-surface-container px-2 py-0.5 rounded font-mono font-bold">
-            Mã dịch vụ: #FG-8821
+            {orderCode ? `Mã đơn: ${orderCode}` : 'Mã dịch vụ: #FG-8821'}
           </span>
         </div>
 
+        {quote ? (
+          <div className="space-y-3 font-body-sm text-body-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-start gap-2 min-w-0">
+                <span className="w-5 h-5 rounded-full bg-surface-container text-secondary flex items-center justify-center font-label-sm text-[11px] flex-shrink-0 mt-0.5 font-bold">
+                  0
+                </span>
+                <div>
+                  <p className="text-on-surface font-medium leading-snug">Phí gọi thợ (đã xác nhận)</p>
+                  <p className="font-label-sm text-[11px] text-secondary">Điều phối &amp; di chuyển tận nơi</p>
+                </div>
+              </div>
+              <span className="font-label-md text-label-md text-on-surface tabular-nums whitespace-nowrap font-bold">
+                {formatVND(quote.callOutFeeAmount)}
+              </span>
+            </div>
+            {quote.items.map((it) => {
+              const discount = it.itemType === 'DISCOUNT';
+              return (
+                <div
+                  key={it.id}
+                  className={`flex items-center justify-between gap-2 ${
+                    discount ? 'p-2.5 rounded-lg bg-surface-container-low border border-surface-container' : ''
+                  }`}
+                >
+                  <div className="flex items-start gap-2 min-w-0">
+                    <span className="w-5 h-5 rounded-full bg-surface-container text-secondary flex items-center justify-center font-label-sm text-[11px] flex-shrink-0 mt-0.5 font-bold">
+                      {it.lineNo}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-on-surface font-medium leading-snug">{it.description}</p>
+                      <p className="font-label-sm text-[11px] text-secondary">
+                        {ITEM_TYPE_LABEL[it.itemType] ?? it.itemType}
+                        {it.quantity !== 1 ? ` · ${it.quantity} × ${formatVND(it.unitPrice)}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className={`font-label-md text-label-md tabular-nums whitespace-nowrap font-bold ${
+                      discount ? 'text-tertiary' : 'text-on-surface'
+                    }`}
+                  >
+                    {discount ? '-' : ''}
+                    {formatVND(it.lineAmount)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
         <div className="space-y-3 font-body-sm text-body-sm">
           {/* Item 1 */}
           <div className="flex items-center justify-between gap-2">
@@ -200,6 +274,7 @@ export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
             </span>
           </div>
         </div>
+        )}
 
         {/* Divider Pill */}
         <div className="w-full h-px bg-surface-container-high my-space-sm"></div>
@@ -216,7 +291,7 @@ export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
           </div>
           <div className="text-right">
             <span className="font-data-metric-lg text-primary tracking-tight tabular-nums block font-extrabold">
-              120.000 ₫
+              {formatVND(total)}
             </span>
           </div>
         </div>
@@ -234,7 +309,7 @@ export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
             Cam kết minh bạch giá chuẩn
           </h4>
           <p className="font-body-sm text-[12.5px] text-on-surface leading-snug">
-            Chỉ thanh toán đúng <strong className="font-bold text-on-surface">120.000 ₫</strong> sau khi xe sửa
+            Chỉ thanh toán đúng <strong className="font-bold text-on-surface">{formatVND(total)}</strong> sau khi xe sửa
             xong và chạy thử. Miễn phí bảo hành vết vá <strong>30 ngày</strong> trên toàn hệ thống Fix&amp;Go.
           </p>
         </div>
@@ -242,23 +317,31 @@ export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
 
       {/* Interactive Action Confirmation Deck */}
       <div className="pt-space-xs space-y-space-sm">
+        {error && (
+          <div role="alert" className="rounded-xl bg-error-container text-on-error-container font-body-sm px-[15px] py-2 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px]">error</span>
+            <span>{error}</span>
+          </div>
+        )}
         <div className="flex items-center gap-space-sm w-full">
           {/* Decline Secondary Button (32%) */}
           <button
             onClick={() => {
               if (
                 window.confirm(
-                  'Bạn muốn từ chối báo giá này? Bạn sẽ chỉ thanh toán 30.000 ₫ chi phí kiểm tra và di chuyển cho thợ.'
+                  `Bạn muốn từ chối báo giá này? Bạn sẽ chỉ thanh toán ${formatVND(callOutFee)} chi phí kiểm tra và di chuyển cho thợ.`
                 )
               ) {
-                onDecline();
+                Promise.resolve(onDecline()).catch((e: unknown) =>
+                  setError(e instanceof Error ? e.message : 'Không từ chối được báo giá.')
+                );
               }
             }}
             className="w-[32%] h-14 rounded-xl bg-surface-container text-on-surface font-label-md text-label-md flex flex-col items-center justify-center active:bg-surface-container-high transition-all shadow-sm font-bold"
             type="button"
           >
             <span>Từ chối</span>
-            <span className="font-label-sm text-[11px] text-secondary font-normal">Phí: 30.000 ₫</span>
+            <span className="font-label-sm text-[11px] text-secondary font-normal">Phí: {formatVND(callOutFee)}</span>
           </button>
 
           {/* Primary Accept CTA (68%) */}
@@ -292,7 +375,7 @@ export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
                 >
                   check_circle
                 </span>
-                <span>ĐỒNG Ý (120.000 ₫)</span>
+                <span>ĐỒNG Ý ({formatVND(total)})</span>
               </>
             )}
           </button>

@@ -4,7 +4,11 @@ import { ASSETS } from '../data';
 interface AuthOtpScreenProps {
   phone: string;
   onBack: () => void;
-  onVerified: () => void;
+  /** Gọi backend xác minh mã; ném lỗi nếu sai/hết hạn → màn tự báo và cho nhập lại. */
+  onVerify: (code: string) => Promise<void>;
+  /** Mã OTP do backend trả khi chạy dev (OTP_DEV_ECHO) — chưa có SMS. */
+  devCode?: string | null;
+  onResend?: () => Promise<void>;
 }
 
 const OTP_LENGTH = 6;
@@ -51,11 +55,14 @@ const Key: React.FC<{
 export const AuthOtpScreen: React.FC<AuthOtpScreenProps> = ({
   phone,
   onBack,
-  onVerified,
+  onVerify,
+  devCode,
+  onResend,
 }) => {
   const [pin, setPin] = useState<string[]>([]);
   const [countdown, setCountdown] = useState(RESEND_SECONDS);
   const [verifying, setVerifying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const isComplete = pin.length === OTP_LENGTH;
 
@@ -65,12 +72,24 @@ export const AuthOtpScreen: React.FC<AuthOtpScreenProps> = ({
     return () => clearTimeout(t);
   }, [countdown]);
 
-  // Tự xác minh khi đủ 6 số
+  // Tự xác minh khi đủ 6 số — gọi backend thật
   useEffect(() => {
     if (!isComplete || verifying) return;
+    let cancelled = false;
     setVerifying(true);
-    const t = setTimeout(() => onVerified(), 900);
-    return () => clearTimeout(t);
+    setError(null);
+    onVerify(pin.join(''))
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : 'Mã không đúng hoặc đã hết hạn.');
+        setPin([]);
+      })
+      .finally(() => {
+        if (!cancelled) setVerifying(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [isComplete]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const push = (d: string) => setPin((p) => (p.length < OTP_LENGTH ? [...p, d] : p));
@@ -79,7 +98,9 @@ export const AuthOtpScreen: React.FC<AuthOtpScreenProps> = ({
   const resend = () => {
     if (countdown > 0) return;
     setPin([]);
+    setError(null);
     setCountdown(RESEND_SECONDS);
+    onResend?.().catch((e: unknown) => setError(e instanceof Error ? e.message : 'Không gửi lại được mã.'));
   };
 
   return (
@@ -166,6 +187,25 @@ export const AuthOtpScreen: React.FC<AuthOtpScreenProps> = ({
             })}
           </div>
 
+          {error && (
+            <div role="alert" className="w-full rounded-xl bg-error-container text-on-error-container font-body-sm px-space-sm py-2 flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px]">error</span>
+              <span>{error}</span>
+            </div>
+          )}
+          {devCode && (
+            <button
+              type="button"
+              onClick={() => setPin(devCode.split(''))}
+              className="w-full rounded-xl bg-tertiary-container text-on-tertiary-container font-body-sm px-space-sm py-2 flex items-center justify-center gap-2"
+            >
+              <span className="material-symbols-outlined text-[18px]">bug_report</span>
+              <span>
+                Mã OTP (dev, chưa có SMS): <strong className="font-label-lg tracking-widest">{devCode}</strong> — bấm để điền
+              </span>
+            </button>
+          )}
+
           <div className="flex flex-col items-center gap-space-sm w-full">
             <div className="flex items-center gap-1.5 text-on-surface-variant font-body-sm">
               <span className="material-symbols-outlined text-[18px] text-primary">schedule</span>
@@ -206,8 +246,8 @@ export const AuthOtpScreen: React.FC<AuthOtpScreenProps> = ({
         {/* CTA xác nhận */}
         <button
           type="button"
-          disabled={!isComplete}
-          onClick={() => isComplete && onVerified()}
+          disabled={!isComplete || verifying}
+          onClick={() => {}}
           className={`w-full min-h-[58px] rounded-2xl font-label-lg uppercase tracking-wider flex items-center justify-center gap-space-sm shadow-md transition-all ${
             isComplete
               ? 'bg-primary-container hover:bg-primary text-on-primary active:translate-y-0.5'

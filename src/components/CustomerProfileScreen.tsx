@@ -1,13 +1,20 @@
 import React from 'react';
 import { ASSETS } from '../data';
 
+import { AuthUser } from '../api/auth';
+
 interface CustomerProfileProps {
   onLogout: () => void;
+  /** Tài khoản thật đang đăng nhập; không có → hiển thị mẫu. */
+  user?: AuthUser | null;
 }
 
 export const CustomerProfileScreen: React.FC<CustomerProfileProps> = ({
   onLogout,
+  user,
 }) => {
+  const name = user?.fullName || (user ? 'Khách Fix&Go' : 'Trần Thị Mai Lan');
+  const contact = user ? user.phone ?? '' : '0908 123 456 • hieunghiatom@gmail.com';
   return (
     <div className="flex flex-col w-full px-gutter pb-24 space-y-space-md pt-2">
       {/* Profile Card */}
@@ -22,14 +29,14 @@ export const CustomerProfileScreen: React.FC<CustomerProfileProps> = ({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h2 className="font-headline-md text-headline-md text-on-surface truncate font-bold">
-              Trần Thị Mai Lan
+              {name}
             </h2>
             <span className="px-1.5 py-0.5 rounded bg-primary-fixed text-on-primary-fixed text-[10px] font-bold uppercase">
               Thành viên VIP
             </span>
           </div>
           <p className="font-body-sm text-[12.5px] text-secondary mt-0.5">
-            0908 123 456 • hieunghiatom@gmail.com
+            {contact}
           </p>
           <div className="flex items-center gap-1 mt-1 text-tertiary font-label-sm text-[11px] font-semibold">
             <span className="material-symbols-outlined text-[14px]">verified</span>

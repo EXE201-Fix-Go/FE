@@ -1,16 +1,28 @@
 import React, { useState } from 'react';
 import { DEFAULT_MECHANIC } from '../data';
+import { QuoteLineInput } from '../api/partner';
 
 interface MechanicQuoteCreateProps {
-  onQuoteSent: () => void;
-  onJobFinished: () => void;
+  /** Gửi các dòng báo giá (không gồm phí gọi thợ — backend tự cộng). */
+  onQuoteSent: (items: QuoteLineInput[]) => Promise<void> | void;
+  onJobFinished: () => Promise<void> | void;
   onBackToNavigation: () => void;
+  /** Đơn thật: trạng thái để biết khách đã duyệt chưa. */
+  live?: { orderCode: string; status: string; contactName?: string | null; contactPhone?: string | null; approvedTotal?: number | null };
 }
+
+const LINE_TYPE: Record<string, QuoteLineInput['itemType']> = {
+  labor: 'LABOR',
+  patch: 'PART',
+  night: 'SURCHARGE',
+  promo: 'DISCOUNT',
+};
 
 export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
   onQuoteSent,
   onJobFinished,
   onBackToNavigation,
+  live,
 }) => {
   const [items, setItems] = useState([
     { id: 'callout', name: 'Phí xuất phát cứu hộ cố định', price: 30000, checked: true, required: true },
@@ -21,8 +33,11 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
   ]);
 
   const [diagnosis, setDiagnosis] = useState('Thủng lốp do đinh tán 3cm • Cần vá nấm chịu lực');
-  const [isSent, setIsSent] = useState(false);
+  const [isSent, setIsSent] = useState(live ? live.status !== 'CHECKING' : false);
   const [isFixing, setIsFixing] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const approved = live ? live.status === 'IN_PROGRESS' || live.status === 'PAUSED' : true;
 
   const toggleItem = (id: string) => {
     setItems((prev) =>
@@ -32,16 +47,36 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
 
   const totalPrice = items.reduce((sum, it) => (it.checked ? sum + it.price : sum), 0);
 
-  const handleSendToCustomer = () => {
-    setIsSent(true);
-    onQuoteSent();
+  const handleSendToCustomer = async () => {
+    setSending(true);
+    setError(null);
+    const lines: QuoteLineInput[] = items
+      .filter((it) => it.checked && it.id !== 'callout')
+      .map((it) => ({
+        itemType: LINE_TYPE[it.id] ?? 'LABOR',
+        description: it.name,
+        quantity: 1,
+        unitPrice: Math.abs(it.price),
+      }));
+    try {
+      await onQuoteSent(lines);
+      setIsSent(true);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Không gửi được báo giá.');
+    } finally {
+      setSending(false);
+    }
   };
 
-  const handleCompleteJob = () => {
+  const handleCompleteJob = async () => {
     setIsFixing(true);
-    setTimeout(() => {
-      onJobFinished();
-    }, 1000);
+    setError(null);
+    try {
+      await onJobFinished();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Không hoàn tất được.');
+      setIsFixing(false);
+    }
   };
 
   return (
@@ -70,7 +105,7 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
         <div>
           <span className="font-label-sm text-[11px] text-secondary">Khách hàng gặp nạn:</span>
           <h3 className="font-label-lg text-label-lg text-on-surface font-bold">
-            Trần Thị Mai Lan (0908 123 456)
+            {live ? `${live.contactName || 'Khách hàng'} (${live.contactPhone || live.orderCode})` : 'Trần Thị Mai Lan (0908 123 456)'}
           </h3>
           <span className="font-body-sm text-[12px] text-secondary">
             Honda Vision • Biển số: 59-P1 888.88
@@ -159,26 +194,42 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
 
       {/* Action triggers */}
       <div className="space-y-2 pt-2">
+        {error && (
+          <div role="alert" className="rounded-xl bg-error-container text-on-error-container font-body-sm px-[15px] py-2 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px]">error</span>
+            <span>{error}</span>
+          </div>
+        )}
         {!isSent ? (
           <button
             onClick={handleSendToCustomer}
+            disabled={sending}
             className="w-full h-14 bg-primary-container text-on-primary rounded-xl font-label-lg text-label-lg font-bold flex items-center justify-center gap-2 shadow-lg active:scale-98 transition-transform"
           >
-            <span className="material-symbols-outlined text-[22px]">send</span>
+            <span className={`material-symbols-outlined text-[22px] ${sending ? 'animate-spin' : ''}`}>{sending ? 'progress_activity' : 'send'}</span>
             <span>GỬI BÁO GIÁ CHO KHÁCH DUYỆT ({totalPrice.toLocaleString('vi-VN')} ₫)</span>
           </button>
         ) : (
           <div className="space-y-2">
-            <div className="p-[15px] bg-tertiary-container/15 text-tertiary rounded-xl flex items-center gap-2 border border-tertiary-container/30">
-              <span className="material-symbols-outlined text-[20px]">check_circle</span>
-              <span className="font-label-sm text-[12.5px] font-bold">
-                Khách đã chấp thuận báo giá 120.000 ₫ trên ứng dụng!
-              </span>
-            </div>
+            {approved ? (
+              <div className="p-[15px] bg-tertiary-container/15 text-tertiary rounded-xl flex items-center gap-2 border border-tertiary-container/30">
+                <span className="material-symbols-outlined text-[20px]">check_circle</span>
+                <span className="font-label-sm text-[12.5px] font-bold">
+                  Khách đã chấp thuận báo giá{live?.approvedTotal ? ` ${live.approvedTotal.toLocaleString('vi-VN')} ₫` : ' 120.000 ₫'} trên ứng dụng!
+                </span>
+              </div>
+            ) : (
+              <div className="p-[15px] bg-surface-container rounded-xl flex items-center gap-2">
+                <span className="material-symbols-outlined text-[20px] text-primary animate-spin">progress_activity</span>
+                <span className="font-label-sm text-[12.5px] text-on-surface-variant">
+                  Đã gửi báo giá — đang chờ khách duyệt trên điện thoại…
+                </span>
+              </div>
+            )}
 
             <button
               onClick={handleCompleteJob}
-              disabled={isFixing}
+              disabled={isFixing || !approved}
               className="w-full h-14 bg-tertiary text-on-tertiary rounded-xl font-label-lg text-label-lg font-bold flex items-center justify-center gap-2 shadow-lg active:scale-98 transition-transform"
             >
               {isFixing ? (

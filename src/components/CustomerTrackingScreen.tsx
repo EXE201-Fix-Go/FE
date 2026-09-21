@@ -2,14 +2,28 @@ import React, { useState } from 'react';
 import { ASSETS, DEFAULT_MECHANIC } from '../data';
 
 interface CustomerTrackingProps {
-  onArrivedAndQuote: () => void;
+  /** Demo: bấm để giả lập thợ tới nơi. Khi nối backend, App tự chuyển màn theo trạng thái. */
+  onArrivedAndQuote?: () => void;
   onCancel: () => void;
+  /** Dữ liệu thật từ backend (nếu có) — ghi đè thông tin mẫu. */
+  live?: {
+    orderCode: string;
+    status: string;
+    statusLabel: string;
+    mechanicName?: string | null;
+    mechanicPhone?: string | null;
+    address: string;
+  };
 }
 
 export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
   onArrivedAndQuote,
   onCancel,
+  live,
 }) => {
+  const mechanicName = live?.mechanicName || DEFAULT_MECHANIC.name;
+  const mechanicPhone = live?.mechanicPhone || DEFAULT_MECHANIC.phone;
+  const arrived = live ? live.status !== 'ASSIGNED' : false;
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ sender: 'mechanic' | 'customer'; text: string }>>([
     {
@@ -103,7 +117,7 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
             </span>
             <div className="flex items-baseline gap-1">
               <span className="font-label-md text-label-md text-on-surface font-bold">
-                Đến trong 6 - 8 phút
+                {live ? live.statusLabel : 'Đến trong 6 - 8 phút'}
               </span>
               <span className="font-body-sm text-[12px] text-secondary">• 1.2 km</span>
             </div>
@@ -124,7 +138,7 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
         <div className="absolute bottom-6 left-4 bg-surface-container-lowest/90 backdrop-blur-sm px-space-sm py-1 rounded-lg shadow-sm flex items-center gap-1">
           <span className="material-symbols-outlined text-primary text-[16px]">location_on</span>
           <span className="font-label-sm text-[12px] text-on-surface truncate max-w-[210px] font-medium">
-            242 Cống Quỳnh, Q.1
+            {live ? live.address : '242 Cống Quỳnh, Q.1'}
           </span>
         </div>
       </div>
@@ -134,20 +148,32 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
         {/* Grabber Indicator */}
         <div className="w-12 h-1.5 bg-surface-container-high rounded-full self-center"></div>
 
-        {/* Next Step Shortcut Button */}
-        <button
-          onClick={onArrivedAndQuote}
-          className="w-full py-2.5 px-3 rounded-xl bg-tertiary-container text-on-tertiary font-label-md text-[13.5px] font-bold flex items-center justify-center gap-2 shadow-md active:scale-98 transition-transform"
-        >
-          <span className="material-symbols-outlined text-[20px]">build_circle</span>
-          <span>Thợ Tuấn đã đến nơi! Bấm để xem Biên bản &amp; Báo giá minh bạch →</span>
-        </button>
+        {/* Next Step Shortcut Button (demo) / Live status line */}
+        {onArrivedAndQuote ? (
+          <button
+            onClick={onArrivedAndQuote}
+            className="w-full py-2.5 px-3 rounded-xl bg-tertiary-container text-on-tertiary font-label-md text-[13.5px] font-bold flex items-center justify-center gap-2 shadow-md active:scale-98 transition-transform"
+          >
+            <span className="material-symbols-outlined text-[20px]">build_circle</span>
+            <span>Thợ Tuấn đã đến nơi! Bấm để xem Biên bản &amp; Báo giá minh bạch →</span>
+          </button>
+        ) : (
+          live && (
+            <div className="w-full py-2.5 px-[15px] rounded-xl bg-surface-container flex items-center justify-between gap-2">
+              <span className="font-body-sm text-on-surface-variant flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px] text-primary animate-pulse">sync</span>
+                {live.statusLabel}
+              </span>
+              <span className="font-label-sm text-secondary">{live.orderCode}</span>
+            </div>
+          )
+        )}
 
         {/* Main Live Dispatch Header */}
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
             <span className="font-label-sm text-[11px] text-primary uppercase tracking-wider font-bold">
-              Đang khẩn cấp di chuyển
+              {arrived ? 'Thợ đang xử lý tại chỗ' : 'Đang khẩn cấp di chuyển'}
             </span>
             <h2 className="font-headline-lg-mobile text-headline-lg-mobile text-on-surface flex items-baseline gap-1 font-bold">
               7 phút{' '}
@@ -157,7 +183,7 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
           <div className="flex flex-col items-end">
             <div className="bg-tertiary-container text-on-tertiary px-2.5 py-1 rounded-full flex items-center gap-1 shadow-xs">
               <span className="material-symbols-outlined text-[15px]">verified</span>
-              <span className="font-label-sm text-[11px] font-bold">Đã nhận đơn</span>
+              <span className="font-label-sm text-[11px] font-bold">{live ? live.statusLabel : 'Đã nhận đơn'}</span>
             </div>
             <span className="font-body-sm text-[11px] text-secondary mt-1">Cập nhật 5s trước</span>
           </div>
@@ -208,7 +234,7 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
         <div className="bg-surface-container-lowest rounded-xl p-[15px] shadow-[0_2px_12px_rgba(11,28,48,0.06)] flex items-center gap-space-md border border-surface-container">
           <div className="relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 shadow-sm bg-surface-container">
             <img
-              alt="Thợ cứu hộ Fix&Go Nguyễn Văn Tuấn"
+              alt={`Thợ cứu hộ Fix&Go ${mechanicName}`}
               className="w-full h-full object-cover"
               src={DEFAULT_MECHANIC.avatar}
             />
@@ -220,7 +246,7 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               <h3 className="font-headline-md text-[17px] leading-tight text-on-surface truncate font-bold">
-                {DEFAULT_MECHANIC.name}
+                {mechanicName}
               </h3>
               <span
                 className="material-symbols-outlined text-tertiary text-[18px]"
@@ -266,7 +292,7 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
           <a
             aria-label="Gọi điện thoại trực tiếp cho thợ cứu hộ"
             className="h-[52px] bg-primary hover:bg-primary-container text-on-primary rounded-xl flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all font-bold"
-            href={`tel:${DEFAULT_MECHANIC.phone}`}
+            href={`tel:${mechanicPhone}`}
           >
             <span
               className="material-symbols-outlined text-[22px]"
@@ -338,7 +364,7 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
             onClick={() => {
               if (
                 window.confirm(
-                  `Thợ ${DEFAULT_MECHANIC.name} đã di chuyển được 600m. Bạn có chắc muốn hủy chuyến cứu hộ này?`
+                  `Thợ ${mechanicName} đang trên đường tới. Bạn có chắc muốn hủy chuyến cứu hộ này?`
                 )
               ) {
                 onCancel();

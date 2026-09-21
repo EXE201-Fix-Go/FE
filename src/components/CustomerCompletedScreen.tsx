@@ -1,15 +1,31 @@
 import React, { useState } from 'react';
 import { ASSETS, DEFAULT_MECHANIC } from '../data';
+import { Order } from '../api/orders';
+import { formatVND } from '../domain/money';
 
 interface CustomerCompletedProps {
   onBackToHome: () => void;
   onViewWarranty: () => void;
+  /** Đơn thật từ backend (đã COMPLETED); không có → hiển thị mẫu. */
+  order?: Order | null;
+  /** "Đã thanh toán" — xác nhận đưa tiền mặt cho thợ (RB-59). */
+  onConfirmPayment?: () => Promise<void>;
+  /** Gửi đánh giá lên backend. */
+  onSubmitReview?: (rating: number, feedback: string) => Promise<void>;
 }
 
 export const CustomerCompletedScreen: React.FC<CustomerCompletedProps> = ({
   onBackToHome,
   onViewWarranty,
+  order,
+  onConfirmPayment,
+  onSubmitReview,
 }) => {
+  const total = order?.quote?.totalAmount ?? order?.payment?.amount ?? 120000;
+  const mechanicName = order?.partner?.fullName || DEFAULT_MECHANIC.name;
+  const paid = order ? order.payment?.status === 'CONFIRMED' : true;
+  const [paying, setPaying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [rating, setRating] = useState(5);
   const [selectedTags, setSelectedTags] = useState<string[]>([
     'Đến rất nhanh',
@@ -32,11 +48,31 @@ export const CustomerCompletedScreen: React.FC<CustomerCompletedProps> = ({
     );
   };
 
-  const handleSubmit = () => {
-    setIsSubmitted(true);
-    setTimeout(() => {
-      onBackToHome();
-    }, 1000);
+  const handleSubmit = async () => {
+    setError(null);
+    try {
+      if (onSubmitReview) {
+        const text = [...selectedTags, feedbackText.trim()].filter(Boolean).join(' · ');
+        await onSubmitReview(rating, text);
+      }
+      setIsSubmitted(true);
+      setTimeout(() => onBackToHome(), 1000);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Không gửi được đánh giá.');
+    }
+  };
+
+  const handlePay = async () => {
+    if (!onConfirmPayment) return;
+    setPaying(true);
+    setError(null);
+    try {
+      await onConfirmPayment();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Không xác nhận được thanh toán.');
+    } finally {
+      setPaying(false);
+    }
   };
 
   const handleDownloadPdf = () => {
@@ -114,7 +150,7 @@ export const CustomerCompletedScreen: React.FC<CustomerCompletedProps> = ({
             </span>
           </div>
           <span className="font-label-sm text-label-sm text-secondary bg-surface-container px-2 py-0.5 rounded font-mono font-bold">
-            #FG-88294
+            {order ? order.orderCode : '#FG-88294'}
           </span>
         </div>
 
@@ -122,13 +158,13 @@ export const CustomerCompletedScreen: React.FC<CustomerCompletedProps> = ({
         <div className="flex items-center gap-space-sm p-space-sm rounded-lg bg-surface-container-low border border-surface-container">
           <img
             className="w-12 h-12 rounded-full object-cover shadow-sm flex-shrink-0"
-            alt="Nguyễn Văn Tuấn"
+            alt={mechanicName}
             src={ASSETS.mechanicReceiptAvatar}
           />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1">
               <span className="font-label-md text-label-md text-on-surface font-bold truncate">
-                {DEFAULT_MECHANIC.name}
+                {mechanicName}
               </span>
               <span
                 className="material-symbols-outlined text-tertiary text-[16px]"
@@ -159,15 +195,17 @@ export const CustomerCompletedScreen: React.FC<CustomerCompletedProps> = ({
           <div className="flex justify-between items-center py-1 pt-1.5">
             <span className="font-body-sm text-body-sm text-secondary">Thời gian xử lý</span>
             <span className="font-label-sm text-[13px] text-on-surface text-right">
-              22:45 • 18/10/2024
+              {order?.completedAt
+                ? new Date(order.completedAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })
+                : '22:45 • 18/10/2024'}
             </span>
           </div>
           <div className="flex justify-between items-center py-1 pt-1.5">
             <span className="font-body-sm text-body-sm text-secondary">Phương thức thanh toán</span>
             <div className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-tertiary"></span>
+              <span className={`w-2 h-2 rounded-full ${paid ? 'bg-tertiary' : 'bg-error'}`}></span>
               <span className="font-label-sm text-[13px] text-on-surface font-semibold">
-                MoMo QR (Thành công)
+                {order ? (paid ? 'Tiền mặt (đã xác nhận)' : 'Tiền mặt — chưa xác nhận') : 'MoMo QR (Thành công)'}
               </span>
             </div>
           </div>
@@ -184,9 +222,29 @@ export const CustomerCompletedScreen: React.FC<CustomerCompletedProps> = ({
             </span>
           </div>
           <span className="font-data-metric-md text-primary font-extrabold tracking-tight">
-            120.000 ₫
+            {formatVND(total)}
           </span>
         </div>
+
+        {order && !paid && (
+          <button
+            type="button"
+            onClick={handlePay}
+            disabled={paying}
+            className="w-full h-12 rounded-xl bg-tertiary text-on-tertiary font-label-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all"
+          >
+            <span className={`material-symbols-outlined text-[20px] ${paying ? 'animate-spin' : ''}`}>
+              {paying ? 'progress_activity' : 'payments'}
+            </span>
+            <span>{paying ? 'Đang xác nhận…' : `Đã đưa ${formatVND(total)} cho thợ`}</span>
+          </button>
+        )}
+        {error && (
+          <div role="alert" className="rounded-xl bg-error-container text-on-error-container font-body-sm px-[15px] py-2 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px]">error</span>
+            <span>{error}</span>
+          </div>
+        )}
       </div>
 
       {/* Interactive Rating Card */}
@@ -196,7 +254,7 @@ export const CustomerCompletedScreen: React.FC<CustomerCompletedProps> = ({
             Đánh giá trải nghiệm
           </span>
           <h2 className="font-headline-md text-headline-md text-on-surface font-bold">
-            Bạn thấy dịch vụ của anh Tuấn thế nào?
+            Bạn thấy dịch vụ của {mechanicName} thế nào?
           </h2>
           <p className="font-body-sm text-[13px] text-secondary">
             Góp ý của bạn giúp cải thiện an toàn cho cả cộng đồng tài xế.

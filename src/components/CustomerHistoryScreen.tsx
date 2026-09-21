@@ -1,144 +1,164 @@
-import React from 'react';
-import { ASSETS, DEFAULT_MECHANIC } from '../data';
+import React, { useEffect, useState } from 'react';
+import { listMyOrders, Order } from '../api/orders';
+import { apiConfigured } from '../api/client';
+import { ORDER_STATUS_LABEL, isTerminal } from '../domain/status';
+import { formatVND } from '../domain/money';
+import { SERVICES } from '../data';
 
 interface CustomerHistoryProps {
   onBackToHome: () => void;
-  onViewInvoice: () => void;
+  /** Mở hóa đơn của một đơn đã hoàn tất. */
+  onViewInvoice: (order: Order) => void;
+  /** Mở lại một đơn đang chạy (theo dõi / duyệt giá). */
+  onResume?: (order: Order) => void;
 }
 
+const STATUS_TONE: Record<string, string> = {
+  COMPLETED: 'bg-tertiary-container text-on-tertiary-container',
+  CANCELLED: 'bg-error-container text-on-error-container',
+  NO_PARTNER_FOUND: 'bg-error-container text-on-error-container',
+  EXPIRED: 'bg-surface-container-highest text-on-surface-variant',
+};
+
+function fmtDate(iso: string): string {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString('vi-VN')} • ${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+/** Dữ liệu mẫu cho bản demo không có backend (GitHub Pages). */
+const DEMO_ORDERS: Order[] = [
+  {
+    id: 'demo-1', orderCode: 'FG-241018-K2M9', status: 'COMPLETED', serviceId: 'tire-patch', serviceName: 'Vá xe lưu động',
+    extraServiceIds: [], addressText: '242 Cống Quỳnh, Q.1', photoUrls: [], lat: 10.77, lng: 106.69, callOutFee: 30000,
+    createdAt: '2024-10-18T15:45:00Z', partner: { id: 'p1', fullName: 'Nguyễn Văn Tuấn', phone: '0908123456' },
+    quote: null, payment: { id: 'pay1', amount: 120000, status: 'CONFIRMED', method: 'CASH' }, history: [],
+  },
+  {
+    id: 'demo-2', orderCode: 'FG-240805-Q7ZD', status: 'CANCELLED', serviceId: 'battery-jump', serviceName: 'Kích bình ắc quy',
+    extraServiceIds: [], addressText: '128 Nguyễn Trãi, Q.1', photoUrls: [], lat: 10.76, lng: 106.68, callOutFee: 30000,
+    createdAt: '2024-08-05T01:30:00Z', partner: { id: 'p2', fullName: 'Trần Đình Nam', phone: '0909000000' },
+    quote: null, payment: { id: 'pay2', amount: 30000, status: 'CONFIRMED', method: 'CASH' }, history: [],
+  },
+];
+
+/** Bảng đơn hàng thật của khách — dữ liệu từ backend (GET /orders). */
 export const CustomerHistoryScreen: React.FC<CustomerHistoryProps> = ({
   onBackToHome,
   onViewInvoice,
+  onResume,
 }) => {
-  const historyList = [
-    {
-      id: '#FG-88294',
-      date: '18/10/2024 • 22:45',
-      service: 'Vá nấm lốp không ruột cao cấp',
-      vehicle: 'Honda Vision 110i • 59-P1 888.88',
-      location: '242 Cống Quỳnh, P. Phạm Ngũ Lão, Q.1',
-      price: '120.000 ₫',
-      status: 'Hoàn tất',
-      mechanic: DEFAULT_MECHANIC.name,
-      warrantyActive: true,
-      warrantyDaysLeft: 28,
-    },
-    {
-      id: '#FG-76120',
-      date: '05/08/2024 • 08:30',
-      service: 'Kích bình ắc quy xe máy',
-      vehicle: 'Honda Air Blade • 59-P1 888.88',
-      location: '128 Nguyễn Trãi, Q.1',
-      price: '60.000 ₫',
-      status: 'Hoàn tất',
-      mechanic: 'Trần Đình Nam',
-      warrantyActive: false,
-    },
-  ];
+  const [orders, setOrders] = useState<Order[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = () => {
+    setError(null);
+    if (!apiConfigured) {
+      setOrders(DEMO_ORDERS);
+      return;
+    }
+    listMyOrders()
+      .then(setOrders)
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Không tải được lịch sử.'));
+  };
+  useEffect(load, []);
+
+  const serviceName = (o: Order) => o.serviceName ?? SERVICES.find((s) => s.id === o.serviceId)?.name ?? o.serviceId;
+  const amount = (o: Order) =>
+    o.quote && o.quote.status === 'APPROVED' ? o.quote.totalAmount : o.payment ? o.payment.amount : o.callOutFee;
 
   return (
     <div className="flex flex-col w-full px-gutter pb-24 space-y-space-md pt-2">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-headline-md text-headline-md text-on-surface font-bold">
-            Lịch sử cứu hộ
-          </h2>
-          <p className="font-body-sm text-[12.5px] text-secondary">
-            Tra cứu hóa đơn điện tử &amp; phiếu bảo hành 30 ngày
-          </p>
+          <h2 className="font-headline-md text-headline-md text-on-surface font-bold">Lịch sử cứu hộ</h2>
+          <p className="font-body-sm text-[12.5px] text-secondary">Dữ liệu thật từ máy chủ Fix&amp;Go</p>
         </div>
         <span className="px-2.5 py-1 bg-primary-fixed text-on-primary-fixed rounded-full font-label-sm text-[11px] font-bold">
-          2 cuốc cứu hộ
+          {orders ? `${orders.length} đơn` : '…'}
         </span>
       </div>
 
-      {/* Active Warranty Highlight Banner */}
-      <div className="p-space-md rounded-xl bg-tertiary-container/10 border border-tertiary-container/20 flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full bg-tertiary-container flex items-center justify-center text-on-tertiary flex-shrink-0 shadow-sm">
-          <span className="material-symbols-outlined text-[22px]">verified_user</span>
+      {error && (
+        <div role="alert" className="rounded-xl bg-error-container text-on-error-container font-body-sm px-[15px] py-2 flex items-center justify-between gap-2">
+          <span>{error}</span>
+          <button type="button" onClick={load} className="font-label-sm underline">Thử lại</button>
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h4 className="font-label-md text-label-md text-tertiary font-bold">
-              Bảo hành còn hiệu lực (28 ngày)
-            </h4>
-            <span className="bg-tertiary text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase">
-              Bảo vệ
-            </span>
-          </div>
-          <p className="font-body-sm text-[12px] text-on-surface mt-0.5 leading-snug">
-            Vết vá xe <b>59-P1 888.88</b> được hỗ trợ vá lại miễn phí tận nơi trên toàn TP.HCM nếu xì rò hơi.
-          </p>
+      )}
+
+      {orders === null && !error && (
+        <div className="rounded-xl bg-surface-container-lowest p-[15px] text-center font-body-sm text-secondary">
+          Đang tải…
         </div>
-      </div>
+      )}
 
-      {/* History Items Cards */}
-      <div className="space-y-space-sm">
-        {historyList.map((item) => (
-          <div
-            key={item.id}
-            className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm border border-surface-container flex flex-col gap-2.5"
-          >
-            <div className="flex items-center justify-between pb-2 border-b border-surface-container/60">
-              <div className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-primary text-[18px]">
-                  receipt_long
-                </span>
-                <span className="font-label-sm text-[12px] font-mono font-bold text-on-surface">
-                  {item.id}
-                </span>
-              </div>
-              <span className="font-label-sm text-[11px] px-2 py-0.5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed font-bold">
-                {item.status}
-              </span>
-            </div>
+      {orders && orders.length === 0 && (
+        <div className="rounded-xl bg-surface-container-lowest p-[15px] text-center font-body-sm text-secondary">
+          Chưa có đơn nào. Đặt cứu hộ ở trang chủ nhé!
+        </div>
+      )}
 
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="font-label-md text-label-md text-on-surface font-bold">
-                  {item.service}
-                </h3>
-                <p className="font-body-sm text-[12px] text-secondary mt-0.5">
-                  {item.vehicle}
-                </p>
-              </div>
-              <span className="font-data-metric-md text-[18px] text-primary font-bold">
-                {item.price}
-              </span>
-            </div>
+      {/* Bảng đơn */}
+      {orders && orders.length > 0 && (
+        <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-container overflow-hidden">
+          <table className="w-full text-left font-body-sm">
+            <thead className="bg-surface-container-low font-label-sm text-[11px] uppercase tracking-wider text-secondary">
+              <tr>
+                <th className="px-[15px] py-2.5">Đơn</th>
+                <th className="px-2 py-2.5">Trạng thái</th>
+                <th className="px-[15px] py-2.5 text-right">Tiền</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-container">
+              {orders.map((o) => {
+                const done = o.status === 'COMPLETED';
+                const running = !isTerminal(o.status);
+                const tone = STATUS_TONE[o.status] ?? 'bg-primary-fixed text-on-primary-fixed';
+                return (
+                  <tr
+                    key={o.id}
+                    onClick={() => (done ? onViewInvoice(o) : running ? onResume?.(o) : undefined)}
+                    className={done || running ? 'cursor-pointer active:bg-surface-container-low' : ''}
+                  >
+                    <td className="px-[15px] py-3 align-top">
+                      <div className="font-label-md text-on-surface font-bold">{serviceName(o)}</div>
+                      <div className="font-label-sm text-[11px] text-secondary font-mono">{o.orderCode}</div>
+                      <div className="font-label-sm text-[11px] text-secondary">{fmtDate(o.createdAt)}</div>
+                      {o.partner?.fullName && (
+                        <div className="font-label-sm text-[11px] text-on-surface-variant">Thợ: {o.partner.fullName}</div>
+                      )}
+                    </td>
+                    <td className="px-2 py-3 align-top">
+                      <span className={`inline-block px-2 py-0.5 rounded-full font-label-sm text-[11px] font-bold ${tone}`}>
+                        {ORDER_STATUS_LABEL[o.status] ?? o.status}
+                      </span>
+                      {running && (
+                        <div className="font-label-sm text-[11px] text-primary mt-1">Bấm để mở ›</div>
+                      )}
+                    </td>
+                    <td className="px-[15px] py-3 align-top text-right font-label-md text-on-surface font-bold tabular-nums whitespace-nowrap">
+                      {formatVND(amount(o))}
+                      {o.payment && (
+                        <div className={`font-label-sm text-[11px] font-normal ${o.payment.status === 'CONFIRMED' ? 'text-tertiary' : 'text-error'}`}>
+                          {o.payment.status === 'CONFIRMED' ? 'đã trả' : 'chưa trả'}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-            <div className="flex items-start gap-1.5 text-secondary text-[12px] font-body-sm">
-              <span className="material-symbols-outlined text-[16px] text-primary-container shrink-0 mt-0.5">
-                location_on
-              </span>
-              <span className="line-clamp-1">{item.location}</span>
-            </div>
-
-            <div className="flex items-center justify-between pt-1 border-t border-surface-container/60">
-              <span className="font-label-sm text-[11px] text-secondary">
-                {item.date} • Thợ {item.mechanic}
-              </span>
-
-              {item.warrantyActive ? (
-                <button
-                  onClick={onViewInvoice}
-                  className="px-2.5 py-1 rounded-lg bg-primary-fixed text-on-primary-fixed font-label-sm text-[11px] font-bold flex items-center gap-1 active:scale-95 transition-transform"
-                >
-                  <span>Chi tiết &amp; Đánh giá</span>
-                  <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-                </button>
-              ) : (
-                <button
-                  onClick={onBackToHome}
-                  className="px-2.5 py-1 rounded-lg bg-surface-container text-secondary font-label-sm text-[11px] font-semibold"
-                >
-                  Đặt lại dịch vụ này
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+      <button
+        type="button"
+        onClick={onBackToHome}
+        className="w-full h-12 rounded-xl bg-surface-container text-on-surface font-label-md flex items-center justify-center gap-2"
+      >
+        <span className="material-symbols-outlined text-[20px]">home</span>
+        Về trang chủ
+      </button>
     </div>
   );
 };

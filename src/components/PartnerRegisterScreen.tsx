@@ -1,10 +1,12 @@
 import React, { useRef, useState } from 'react';
 import { SERVICES } from '../data';
+import { RegisterPartnerInput } from '../api/partner';
 
 interface PartnerRegisterScreenProps {
   phone?: string;
   onBack: () => void;
-  onSubmitted: () => void;
+  /** Gửi hồ sơ KYC lên backend; ném lỗi nếu thất bại. */
+  onSubmitted: (input: RegisterPartnerInput) => Promise<void> | void;
 }
 
 type DocKey = 'front' | 'back' | 'selfie';
@@ -92,6 +94,7 @@ export const PartnerRegisterScreen: React.FC<PartnerRegisterScreenProps> = ({
     selfie: null,
   });
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const toggleSkill = (id: string) =>
     setSkills((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
@@ -103,10 +106,27 @@ export const PartnerRegisterScreen: React.FC<PartnerRegisterScreenProps> = ({
   const doneCount = [stepInfo, stepDocs, stepSelfie].filter(Boolean).length;
   const canSubmit = stepInfo && stepDocs && stepSelfie && skills.length > 0;
 
-  const submit = () => {
+  const submit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
-    setTimeout(onSubmitted, 900);
+    setError(null);
+    try {
+      // Ảnh KYC: prototype chưa upload — gửi khóa lưu trữ tạm (app thật đẩy lên private storage, BRD §8).
+      await onSubmitted({
+        fullName: name.trim(),
+        partnerType: shopType === 'shop' ? 'SHOP' : 'INDIVIDUAL',
+        shopName: shopType === 'shop' ? `Tiệm của ${name.trim()}` : undefined,
+        serviceCodes: skills,
+        documents: [
+          { documentType: 'ID_FRONT', storageKey: `kyc/${phone ?? 'unknown'}/front.jpg` },
+          { documentType: 'ID_BACK', storageKey: `kyc/${phone ?? 'unknown'}/back.jpg` },
+          { documentType: 'SELFIE', storageKey: `kyc/${phone ?? 'unknown'}/selfie.jpg` },
+        ],
+      });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Không gửi được hồ sơ.');
+      setSubmitting(false);
+    }
   };
 
   const steps = [
