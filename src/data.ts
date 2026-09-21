@@ -1,0 +1,106 @@
+import { ServiceItem, MechanicInfo } from './types';
+
+export const ASSETS = {
+  logo: '/logo.png',
+  mechanicTuan: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBCpIbCKLzT9TdEuxBAhBakbQIhh9oBv_59Y4KR5d644VMFKV1gSisX5vhmTvGk8xp3vGOGmZWOYhI_kszZWD2-dlg1QUaO3CfFRJZcreTIOkuVyex6vmNKIR4jx52E6mmokeXloO8URmcR0Js1r_3L1pYt_QDPeTwsKxeg78gPq8tYs5EPqmnG5WIUgu5NH7iT8LqFNKpqVPLtnAPnAlWiZD6dD_XHzSN5k46UCARGD94mZyBrVzYa',
+  mechanicAvatarHome: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBOxdAY5qdmSliO2TaCPt9MpLM3PUpI2ZUEss7Qxde8pbTl1KsoxscmKrTjbX6J43KdcxksjpzJBdcRlRWRQx7CpofXnwRN5gri8V14GvqviQKPxyPHF_I_bgbArXiPBhg_8uLpGukiNP7XRuO4HuT0KQRcepPfBQYcBMjg3y40G0jaeBo3RWFB2TyO64xFh-_u5Lcx7d3haRvyXeyW0LfSwZa-SdWLwcANcmPfGxMJ8xpDKBMCc0-T',
+  mechanicReceiptAvatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAYGt961l2aJ3pB7NHDYPEupElE97jQ-Yhx0dYDWM5yqONc-2zn7DZmroNDxof578rOlzuPPrjyfMzXqyuG5U7HFk1uoQMSZd2Ay1Hmwzwn9R3Z2n5vP76VAwUcwXQDHGrtRhEz-XNPr9ePJ2kCbBODsIb7FP8DiRffrSFaGgnmlHPapNv9whxvNmANd1ghqWC83G_P0cIlE_2Z8wHMbyyDYKX7kj5BIR7LjA0NoKsTylfBQn4cSF4R',
+  customerPortrait: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD4KHMtR2gnovTLob3mZ34Uy63Z6ZMPDISJzVmOnYSz34s--npc9P3ZxaWnbHgiqdmolPITpwOhXKlKyojdkCx7PjFB_nA0LgZa2xNgCHh4eq-PUFSxJw7zX2WuR7PykqLgAVEcE9H1_1BSL58j7pQ-FB8QdFgqn2UUkC0KERCi5XTqAhtUjuPa3aI3ZNdVI7ymTjLEIklH3g_PcYJgEjGlC8rf1Hr8BecjopcBDJAZGD8Cr8YGI4pC',
+  mapSnapshotHome: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDgJ31Fb3-_473b_j5nTNbflUQOeYZiimsmNZQGZqbRwHSgq1-zOrwMMlnAOcNvbkrhGuIavxrRt1dlwWlEv3KuiPvQbMsHVbOgcouYiwl2wotxpOpxq_YuKW-_o_R5jrCUtqp8rLgpCbI1iBmtyRHCovtOsjLKMIi-B3YIB9RI72Eq0qFjgarPx23VNvKYR1ouYnWKllm6EVMOfR41O9fXmIcdSapDRZsDYODhb4nrB2n5GV4eWPGo',
+  mapTrackingLive: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDVn3Gq1sU2MTed6aQA8C7BK54slwu7flw36L6BsY-P_q3cl8GaPjN__8losR8Jdd9UPwOIJdx-7EHFKYGoG1_I3Y8UnKGrwP_Vj0jSeyqqXp2r_bF3YUWOeoLQHtPFNK-vO7s2UmHo6iHid2cfflO7QyI7Of75YEE-OAWvAo5ThNtExfv5KmL5q3ypLPgvSeEZF269UakXqCufnMScjUAuPnqlohnEv6byzQaKKXwjQSsW6YNdQq3C',
+  mapNavMechanic: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCJvd8B-mOxPBEIAZE0vTEHAGlokGbUKnK97_oOP6m27yLPRNmKAh5_wXbm6xZ1s3Yxg4Pktz8LAf67p5aospeIiyc4hf8vJPYj8-lNZQrCat237SUbfWobxfSAVEnSALrbv53uqo_qdiG_pKEyVWM3GaH4YWkzi8d7bqLo_McMTiV9XRkNc8YiUW3T3vRDf65g38tE11v_82OPCeT0bCvwKiwdcsufhGs6i0ZmZIPNE9_8ka91nVvk',
+  heatmapQ1: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDuCac-CFR3ZMBACp3lQOUrdU2lEmVB9lTd3hNYSURIYNI1KnG7RFYz7-sgA4ovgR6LGg0uArBK2u0-Ta8cSf0iXvgUspXTCL0-yfFR9eKaWhyuAoygEmtuH3HUhvQqdTGyUAwQk_Fglxm4H3fKZ3LiPFkVXoLLXmplEomaJKszwaCGB_12oGxa1iYGV3UAk8mjuAg11UeHiogEEnXA0qF_gDIoH9B6kR_PssU4BsBF5d4KB1NB_s4E',
+  evidenceNail: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCm_vi9argIuajl0tUDxUf_LnBdRYkOufY9Skw-3ooaYHKT6OSHmKDc9p6KKn-Rz-a2IK0q26VGgSxaum9_jdsvdEZgyEZcxWAlDBqyHoV37yn06dVW-YoC_RprE5l2YJhq4nyGv-lglkbX4uroI2F68lgyJ4wfF8VFF2DJ5QB-FhXrQMfWhbe_xc6LuVcNqoHC2E7MOzYxHv7NLpNAZHHvS_gt5o785cEykyvRyrLs2kWCS1Bl3amL',
+  evidenceCleaned: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDuVo-Wn3CVutu5zLvZcRAR0vaaiif_rK4_3DTzVUSp472EVusN6tGjHPJlPJMUQNn_mfPfdiez7QKK-GxwjjDTvJdctD7UFVH_6xl_Cw_5olbKpzHh8VhwFh_kq_IcgmJVvVwuq0Zb2QxnTJHP-wVulZFVQsAZYoi9QEuglz9qaMBS6zCX2Q0t0ya--OFtgwry_T0NIBS1oiApUULtbC-Y8Xo7pAfJRUUv0cu55pw6nLtwjWMJ1BaE',
+};
+
+// Bảng giá tham khảo MVP — theo tài liệu "Vận Hành EXE101" (Mục 10).
+// Phí gọi thợ / kiểm tra ban đầu: 30.000đ (hiển thị ở màn xác nhận).
+export const SERVICES: ServiceItem[] = [
+  {
+    id: 'tire-patch',
+    name: 'Vá xe lưu động',
+    desc: 'Thủng lốp, cán đinh',
+    price: 80000,
+    priceDisplay: '80.000',
+    badge: '10 phút',
+    badgeColor: 'tertiary',
+    icon: 'album',
+  },
+  {
+    id: 'tire-pump',
+    name: 'Bơm lốp tận nơi',
+    desc: 'Non hơi, xuống lốp',
+    price: 50000,
+    priceDisplay: '50.000',
+    badge: 'Nhanh',
+    badgeColor: 'tertiary',
+    icon: 'air',
+  },
+  {
+    id: 'tube-replace',
+    name: 'Thay ruột xe',
+    desc: 'Xe số 130k · tay ga 160k',
+    price: 130000,
+    priceDisplay: '130.000',
+    badge: 'Phổ biến',
+    badgeColor: 'primary',
+    icon: 'donut_large',
+  },
+  {
+    id: 'battery-jump',
+    name: 'Kích bình ắc quy',
+    desc: 'Hết điện, không đề được',
+    price: 80000,
+    priceDisplay: '80.000',
+    icon: 'battery_charging_full',
+  },
+  {
+    id: 'chain-fix',
+    name: 'Tăng sên',
+    desc: 'Tuột xích, kẹt sên máy',
+    price: 60000,
+    priceDisplay: '60.000',
+    icon: 'settings',
+  },
+  {
+    id: 'chain-clean',
+    name: 'Vệ sinh / bôi trơn sên',
+    desc: 'Sên khô, kêu rít khi chạy',
+    price: 90000,
+    priceDisplay: '90.000',
+    icon: 'cleaning_services',
+  },
+  {
+    id: 'oil-change',
+    name: 'Thay nhớt tận nơi',
+    desc: 'Cạn nhớt, bó máy dọc đường',
+    price: 180000,
+    priceDisplay: '180.000',
+    icon: 'water_drop',
+  },
+  {
+    id: 'towing',
+    name: 'Chở / kéo xe về tiệm',
+    desc: 'Hỏng nặng · +10–12k/km',
+    price: 60000,
+    priceDisplay: '60.000',
+    badge: 'Xe chuyên dụng',
+    badgeColor: 'secondary',
+    icon: 'rv_hookup',
+  },
+];
+
+export const DEFAULT_MECHANIC: MechanicInfo = {
+  name: 'Nguyễn Văn Tuấn',
+  rating: 4.9,
+  ratingCount: 1420,
+  completedJobs: 480,
+  vehicle: 'Honda Wave Alpha',
+  licensePlate: '59-V1 824.96',
+  team: 'Kỹ thuật viên bậc 3 • Fix&Go Đội 4 (Q.1)',
+  phone: '0908 123 456',
+  avatar: ASSETS.mechanicTuan,
+  distance: '1.2 km',
+  eta: '6 - 8 phút',
+};

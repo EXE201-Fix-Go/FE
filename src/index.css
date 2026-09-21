@@ -1,0 +1,226 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #f8f9ff;
+  --color-surface-dim: #cbdbf5;
+  --color-surface-bright: #f8f9ff;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #eff4ff;
+  --color-surface-container: #e5eeff;
+  --color-surface-container-high: #dce9ff;
+  --color-surface-container-highest: #d3e4fe;
+  --color-surface-variant: #d3e4fe;
+
+  --color-on-surface: #0b1c30;
+  --color-on-surface-variant: #5a4138;
+  --color-inverse-surface: #213145;
+  --color-inverse-on-surface: #eaf1ff;
+
+  --color-primary: #a33900;
+  --color-primary-container: #cc4900;
+  --color-primary-fixed: #ffdbce;
+  --color-primary-fixed-dim: #ffb599;
+  --color-on-primary: #ffffff;
+  --color-on-primary-container: #fffbff;
+  --color-on-primary-fixed: #370e00;
+  --color-on-primary-fixed-variant: #7f2b00;
+
+  --color-secondary: #565e74;
+  --color-secondary-container: #dae2fd;
+  --color-secondary-fixed: #dae2fd;
+  --color-secondary-fixed-dim: #bec6e0;
+  --color-on-secondary: #ffffff;
+  --color-on-secondary-container: #5c647a;
+  --color-on-secondary-fixed: #131b2e;
+
+  --color-tertiary: #006947;
+  --color-tertiary-container: #00855b;
+  --color-tertiary-fixed: #6ffbbe;
+  --color-tertiary-fixed-dim: #4edea3;
+  --color-on-tertiary: #ffffff;
+  --color-on-tertiary-container: #f5fff6;
+  --color-on-tertiary-fixed: #002113;
+
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+  --color-on-error: #ffffff;
+  --color-on-error-container: #93000a;
+  --color-outline: #8e7166;
+  --color-outline-variant: #e2bfb2;
+
+  /* Thang spacing dat ten (space-xs..xl, gutter) de mo khoa moi utility
+     p-, px-, py-, m-, mb-, mt-, ml-, gap-, space-y- ... dung thang tu mock Stitch. */
+  --spacing-space-xs: 0.25rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-md: 1rem;
+  --spacing-space-lg: 1.5rem;
+  --spacing-space-xl: 2rem;
+  --spacing-gutter: 1rem;
+  --spacing-gutter-sm: 0.75rem;
+}
+
+body {
+  font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #f8f9ff;
+  color: #0b1c30;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Material Symbols Outlined settings */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  vertical-align: middle;
+}
+
+/* Custom Spacing & Gutter utility classes matching user's HTML */
+.px-gutter {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+.px-gutter-sm {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+.p-space-xs { padding: 0.25rem; }
+.p-space-sm { padding: 0.5rem; }
+.p-space-md { padding: 1rem; }
+.p-space-lg { padding: 1.5rem; }
+.p-space-xl { padding: 2rem; }
+
+.pt-space-xs { padding-top: 0.25rem; }
+.pt-space-sm { padding-top: 0.5rem; }
+.pt-space-md { padding-top: 1rem; }
+.pt-space-lg { padding-top: 1.5rem; }
+
+.pb-space-xs { padding-bottom: 0.25rem; }
+.pb-space-sm { padding-bottom: 0.5rem; }
+.pb-space-md { padding-bottom: 1rem; }
+.pb-space-lg { padding-bottom: 1.5rem; }
+.pb-space-xl { padding-bottom: 2rem; }
+
+.space-y-space-xs > :not([hidden]) ~ :not([hidden]) { margin-top: 0.25rem; }
+.space-y-space-sm > :not([hidden]) ~ :not([hidden]) { margin-top: 0.5rem; }
+.space-y-space-md > :not([hidden]) ~ :not([hidden]) { margin-top: 1rem; }
+.space-y-space-lg > :not([hidden]) ~ :not([hidden]) { margin-top: 1.5rem; }
+
+.gap-space-xs { gap: 0.25rem; }
+.gap-space-sm { gap: 0.5rem; }
+.gap-space-md { gap: 1rem; }
+.gap-space-lg { gap: 1.5rem; }
+
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Typography styles matching user specification */
+.font-headline-xl {
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.font-headline-lg, .font-headline-lg-mobile {
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.font-headline-md {
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 19px;
+  line-height: 27px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+.font-body-lg {
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 17px;
+  line-height: 25px;
+  font-weight: 500;
+}
+.font-body-md {
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 400;
+}
+.font-body-sm {
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 13.5px;
+  line-height: 19px;
+  font-weight: 400;
+}
+.font-label-lg {
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.font-label-md {
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.font-label-sm {
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.font-data-metric-lg {
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 32px;
+  line-height: 36px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.font-data-metric-md {
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* ===== Khung điện thoại canh giữa trên màn lớn (tablet/desktop) =====
+   Điện thoại: app full màn hình (mặc định).
+   Từ 768px trở lên: cột app max-w-md nằm giữa, nền backdrop tối nhẹ làm nổi "khung máy".
+   Các thanh cố định (header/nav) đã được ràng max-w-md mx-auto nên canh khớp cột. */
+@media (min-width: 768px) {
+  body {
+    background: radial-gradient(1100px 760px at 50% -8%, #16324f 0%, #0b1723 55%, #070d15 100%);
+    background-attachment: fixed;
+  }
+}
+
+/* Hide scrollbar */
+.no-scrollbar::-webkit-scrollbar,
+::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Fix&Go Sài Gòn",
+  "description": "Hệ thống cứu hộ xe máy khẩn cấp 24/7 Sài Gòn - Định vị thợ gần nhất, báo giá minh bạch và bảo hành điện tử 30 ngày.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
