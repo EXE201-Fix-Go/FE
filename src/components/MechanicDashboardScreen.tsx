@@ -374,6 +374,17 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
               </div>
             </div>
 
+            {/* Ảnh hiện trường khách gửi (BR05) */}
+            {offer && offer.photoUrls && offer.photoUrls.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {offer.photoUrls.map((u) => (
+                  <a key={u} href={u} target="_blank" rel="noreferrer" className="shrink-0">
+                    <img src={u} alt="Ảnh hiện trường" className="w-20 h-20 rounded-lg object-cover border border-surface-container" />
+                  </a>
+                ))}
+              </div>
+            )}
+
             {/* Khối Tác Vụ Cỡ Đại */}
             <div className="pt-space-sm flex items-center gap-space-sm">
               {/* Nút Từ chối */}

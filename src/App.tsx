@@ -25,17 +25,19 @@ import {
   Order, createOrder, confirmOrder, getOrder, getOrderStatus, cancelOrder, approveQuote, declineQuote, submitReview,
 } from './api/orders';
 import {
-  Offer, PartnerProfile, PartnerStats, getPartnerMe, getPartnerStats, updatePresence, listOffers, listJobs, acceptOffer,
-  declineOffer,
+  Offer, PartnerProfile, PartnerStats, getPartnerMe, updatePresence, acceptOffer, declineOffer,
   arriveAtOrder, startChecking, sendQuote, completeOrder, registerPartner, QuoteLineInput,
 } from './api/partner';
 import { ORDER_STATUS_LABEL, isTerminal } from './domain/status';
+import { uploadPhoto } from './api/uploads';
+import { getPartnerDashboard } from './api/partner';
 
 type AuthStep = 'phone' | 'otp' | 'role';
 
 /** Làng Đại học, Thủ Đức — khu vực pilot (BRD). Prototype chưa dùng GPS thật. */
 const PILOT_LOCATION = { lat: 10.87, lng: 106.803 };
 const POLL_MS = 4000;
+const DASHBOARD_POLL_MS = 3000;
 
 /** Màn khách nào đang "theo dõi" đơn thì App được phép tự chuyển màn theo trạng thái. */
 const CUSTOMER_WATCH_SCREENS: ScreenId[] = [
@@ -239,13 +241,15 @@ export default function App() {
     return () => clearInterval(id);
   }, [live, currentOrder?.id, currentOrder?.status, activeScreen]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const placeOrder = async (note: string, extraServiceIds: string[], photoUrls: string[]) => {
+  const placeOrder = async (note: string, extraServiceIds: string[], photos: File[]) => {
+    // Ảnh hiện trường lên máy chủ trước (BR05), rồi mới tạo đơn với URL thật để thợ xem được.
+    const photoUrls = await Promise.all(photos.map(uploadPhoto));
     const created = await createOrder({
       serviceId: selectedService.id,
       extraServiceIds,
       addressText: currentAddress,
       note,
-      photoUrls: photoUrls.filter((u) => !u.startsWith('blob:')),
+      photoUrls,
       lat: PILOT_LOCATION.lat,
       lng: PILOT_LOCATION.lng,
     });
@@ -276,11 +280,12 @@ export default function App() {
     if (partnerInFlight.current) return;
     partnerInFlight.current = true;
     try {
-      const [p, of, jb, st] = await Promise.all([getPartnerMe(), listOffers(), listJobs(), getPartnerStats().catch(() => null)]);
+      const d = await getPartnerDashboard();   // 1 request thay vì 4 → nhẹ pool kết nối, nhanh hơn
+      const p = d.profile;
       setProfile(p);
-      setOffers(of);
-      setJobs(jb);
-      if (st) setStats(st);
+      setOffers(d.offers);
+      setJobs(d.jobs);
+      setStats(d.stats);
       setPartnerError(
         p.verificationStatus !== 'APPROVED'
           ? 'Hồ sơ KYC đang chờ Fix&Go duyệt — bạn chưa nhận được đơn. (Admin duyệt qua API /admin/partners/{id}/verify)'
@@ -309,7 +314,7 @@ export default function App() {
       }
       if (!cancelled) refreshPartner();
     })();
-    const id = setInterval(refreshPartner, POLL_MS);
+    const id = setInterval(refreshPartner, DASHBOARD_POLL_MS);
     return () => {
       cancelled = true;
       clearInterval(id);
@@ -562,6 +567,7 @@ export default function App() {
                     error: partnerError,
                     onAccept: async (assignmentId) => {
                       const accepted = await acceptOffer(assignmentId);
+                      setOffers([]);
                       await openJob(accepted);
                     },
                     onDecline: async (assignmentId) => {
@@ -590,6 +596,7 @@ export default function App() {
                     addressText: activeOrder.addressText,
                     note: activeOrder.note,
                     serviceName: activeOrder.serviceName,
+                    photoUrls: activeOrder.photoUrls,
                   }
                 : undefined
             }

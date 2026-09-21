@@ -9,7 +9,7 @@ interface CustomerConfirmRequestProps {
   currentAddress: string;
   onBack: () => void;
   /** Gửi đơn lên backend; ném lỗi nếu thất bại → màn báo và cho thử lại. */
-  onConfirmDispatch: (note: string, extraServiceIds: string[], photoUrls: string[]) => Promise<void>;
+  onConfirmDispatch: (note: string, extraServiceIds: string[], photos: File[]) => Promise<void>;
   onChangeService: () => void;
   onEditAddress: () => void;
 }
@@ -34,13 +34,13 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
     setExtra((e) => (e.includes(id) ? e.filter((x) => x !== id) : [...e, id]));
 
   // Ảnh hiện trường / bằng chứng
-  const [photos, setPhotos] = useState<{ id: string; url: string }[]>([]);
+  const [photos, setPhotos] = useState<{ id: string; url: string; file: File }[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const addPhotos = (files: FileList | null) => {
     if (!files) return;
     const next = Array.from(files)
       .slice(0, MAX_PHOTOS - photos.length)
-      .map((f) => ({ id: `${Date.now()}-${Math.random()}`, url: URL.createObjectURL(f) }));
+      .map((f) => ({ id: `${Date.now()}-${Math.random()}`, url: URL.createObjectURL(f), file: f }));
     setPhotos((p) => [...p, ...next]);
   };
   const removePhoto = (id: string) => setPhotos((p) => p.filter((x) => x.id !== id));
@@ -54,8 +54,7 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      // Ảnh hiện trường: prototype chưa có upload — gửi URL tạm (app thật đẩy lên Cloudinary trước, BRD §8).
-      await onConfirmDispatch(note, extra, photos.map((p) => p.url));
+      await onConfirmDispatch(note, extra, photos.map((p) => p.file));
     } catch (e: unknown) {
       setSubmitError(e instanceof Error ? e.message : 'Không gửi được yêu cầu.');
       setIsSubmitting(false);

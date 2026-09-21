@@ -5,7 +5,7 @@ interface MechanicNavigationProps {
   /** Bấm "Đã tới nơi" — khi nối backend là async (ARRIVED → CHECKING). */
   onArrived: () => Promise<void> | void;
   /** Đơn thật (tên khách, địa chỉ, ghi chú); không có → mẫu. */
-  live?: { orderCode: string; contactName?: string | null; addressText: string; note?: string | null; serviceName: string };
+  live?: { orderCode: string; contactName?: string | null; addressText: string; note?: string | null; serviceName: string; photoUrls?: string[] };
   onBackToDashboard: () => void;
 }
 
@@ -140,6 +140,15 @@ export const MechanicNavigationScreen: React.FC<MechanicNavigationProps> = ({
             <span className="font-body-sm text-[12px] text-primary mt-0.5 block">
               Ghi chú: {live ? live.note || '—' : 'Xe Vision đỏ dựng trước cổng Circle K'}
             </span>
+            {live?.photoUrls && live.photoUrls.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto mt-2">
+                {live.photoUrls.map((u) => (
+                  <a key={u} href={u} target="_blank" rel="noreferrer" className="shrink-0">
+                    <img src={u} alt="Ảnh hiện trường" className="w-20 h-20 rounded-lg object-cover border border-surface-container" />
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

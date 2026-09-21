@@ -16,6 +16,13 @@ interface CustomerTrackingProps {
   };
 }
 
+const STEPS = [
+  { label: 'Đã nhận', icon: 'check' },
+  { label: 'Đang đến', icon: 'navigation' },
+  { label: 'Đã tới nơi', icon: 'place' },
+  { label: 'Sửa chữa', icon: 'build' },
+];
+
 export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
   onArrivedAndQuote,
   onCancel,
@@ -24,6 +31,14 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
   const mechanicName = live?.mechanicName || DEFAULT_MECHANIC.name;
   const mechanicPhone = live?.mechanicPhone || DEFAULT_MECHANIC.phone;
   const arrived = live ? live.status !== 'ASSIGNED' : false;
+  // Bước hiện tại trên thanh tiến trình theo trạng thái thật (§7.1)
+  const stepIndex = !live
+    ? 1
+    : live.status === 'ASSIGNED'
+    ? 1
+    : ['ARRIVED', 'CHECKING', 'WAITING_FOR_APPROVAL', 'APPROVED'].includes(live.status)
+    ? 2
+    : 3;
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ sender: 'mechanic' | 'customer'; text: string }>>([
     {
@@ -176,8 +191,13 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
               {arrived ? 'Thợ đang xử lý tại chỗ' : 'Đang khẩn cấp di chuyển'}
             </span>
             <h2 className="font-headline-lg-mobile text-headline-lg-mobile text-on-surface flex items-baseline gap-1 font-bold">
-              7 phút{' '}
-              <span className="font-body-md text-body-md text-secondary font-normal">(1.2 km)</span>
+              {live && arrived ? (
+                live.statusLabel
+              ) : (
+                <>
+                  7 phút <span className="font-body-md text-body-md text-secondary font-normal">(1.2 km)</span>
+                </>
+              )}
             </h2>
           </div>
           <div className="flex flex-col items-end">
@@ -194,39 +214,38 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
           <div className="flex items-center justify-between relative px-2">
             {/* Connecting Track Bar */}
             <div className="absolute left-6 right-6 top-1/2 -translate-y-1/2 h-1 bg-surface-container-highest -z-0"></div>
-            <div className="absolute left-6 w-[36%] top-1/2 -translate-y-1/2 h-1 bg-primary -z-0"></div>
+            <div className="absolute left-6 top-1/2 -translate-y-1/2 h-1 bg-primary -z-0" style={{ width: `${[6, 36, 66, 96][stepIndex] ?? 36}%` }}></div>
 
-            {/* Step 1: Assigned */}
-            <div className="flex flex-col items-center gap-1 z-10">
-              <div className="w-7 h-7 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm">
-                <span className="material-symbols-outlined text-[16px]">check</span>
-              </div>
-            </div>
-            {/* Step 2: On the way (Active) */}
-            <div className="flex flex-col items-center gap-1 z-10">
-              <div className="w-7 h-7 rounded-full bg-primary-container text-on-primary ring-4 ring-primary-fixed/60 flex items-center justify-center shadow-md animate-pulse">
-                <span className="material-symbols-outlined text-[16px]">navigation</span>
-              </div>
-            </div>
-            {/* Step 3: Arrived */}
-            <div className="flex flex-col items-center gap-1 z-10">
-              <div className="w-7 h-7 rounded-full bg-surface-container-highest text-secondary flex items-center justify-center">
-                <span className="material-symbols-outlined text-[16px]">place</span>
-              </div>
-            </div>
-            {/* Step 4: Repairing */}
-            <div className="flex flex-col items-center gap-1 z-10">
-              <div className="w-7 h-7 rounded-full bg-surface-container-highest text-secondary flex items-center justify-center">
-                <span className="material-symbols-outlined text-[16px]">build</span>
-              </div>
-            </div>
+            {STEPS.map((st, i) => {
+              const done = i < stepIndex;
+              const active = i === stepIndex;
+              return (
+                <div key={st.label} className="flex flex-col items-center gap-1 z-10">
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                      done
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : active
+                        ? 'bg-primary-container text-on-primary ring-4 ring-primary-fixed/60 shadow-md animate-pulse'
+                        : 'bg-surface-container-highest text-secondary'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[16px]">{done ? 'check' : st.icon}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <div className="flex items-center justify-between text-center px-0 font-label-sm text-[11px]">
-            <span className="text-on-surface w-1/4 font-semibold">Đã nhận</span>
-            <span className="text-primary font-bold w-1/4">Đang đến</span>
-            <span className="text-secondary w-1/4">Đã tới nơi</span>
-            <span className="text-secondary w-1/4">Sửa chữa</span>
+            {STEPS.map((st, i) => (
+              <span
+                key={st.label}
+                className={`w-1/4 ${i < stepIndex ? 'text-on-surface font-semibold' : i === stepIndex ? 'text-primary font-bold' : 'text-secondary'}`}
+              >
+                {st.label}
+              </span>
+            ))}
           </div>
         </div>
 

@@ -36,6 +36,7 @@ export interface Offer {
   offeredAt: string;
   expiresAt?: string | null;
   roundNo: number;
+  photoUrls?: string[];
 }
 export interface Staff {
   userId: string;
@@ -64,6 +65,14 @@ export interface PartnerStats {
   activeJobs: number;
 }
 export const getPartnerStats = () => api<PartnerStats>('/partner/stats');
+export interface PartnerDashboard {
+  profile: PartnerProfile;
+  offers: Offer[];
+  jobs: Offer[];
+  stats: PartnerStats;
+}
+/** Một request cho cả màn dashboard (hồ sơ + lời mời + đơn đang làm + thống kê). */
+export const getPartnerDashboard = () => api<PartnerDashboard>('/partner/dashboard');
 export const updatePresence = (availability: PartnerProfile['availability'], lat?: number, lng?: number) =>
   api<PartnerProfile>('/partner/me/presence', { method: 'PATCH', body: { availability, lat, lng } });
 
