@@ -1,7 +1,7 @@
 import { ServiceItem, MechanicInfo } from './types';
 
 export const ASSETS = {
-  logo: '/logo.png',
+  logo: `${import.meta.env.BASE_URL}logo.png`,
   mechanicTuan: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBCpIbCKLzT9TdEuxBAhBakbQIhh9oBv_59Y4KR5d644VMFKV1gSisX5vhmTvGk8xp3vGOGmZWOYhI_kszZWD2-dlg1QUaO3CfFRJZcreTIOkuVyex6vmNKIR4jx52E6mmokeXloO8URmcR0Js1r_3L1pYt_QDPeTwsKxeg78gPq8tYs5EPqmnG5WIUgu5NH7iT8LqFNKpqVPLtnAPnAlWiZD6dD_XHzSN5k46UCARGD94mZyBrVzYa',
   mechanicAvatarHome: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBOxdAY5qdmSliO2TaCPt9MpLM3PUpI2ZUEss7Qxde8pbTl1KsoxscmKrTjbX6J43KdcxksjpzJBdcRlRWRQx7CpofXnwRN5gri8V14GvqviQKPxyPHF_I_bgbArXiPBhg_8uLpGukiNP7XRuO4HuT0KQRcepPfBQYcBMjg3y40G0jaeBo3RWFB2TyO64xFh-_u5Lcx7d3haRvyXeyW0LfSwZa-SdWLwcANcmPfGxMJ8xpDKBMCc0-T',
   mechanicReceiptAvatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAYGt961l2aJ3pB7NHDYPEupElE97jQ-Yhx0dYDWM5yqONc-2zn7DZmroNDxof578rOlzuPPrjyfMzXqyuG5U7HFk1uoQMSZd2Ay1Hmwzwn9R3Z2n5vP76VAwUcwXQDHGrtRhEz-XNPr9ePJ2kCbBODsIb7FP8DiRffrSFaGgnmlHPapNv9whxvNmANd1ghqWC83G_P0cIlE_2Z8wHMbyyDYKX7kj5BIR7LjA0NoKsTylfBQn4cSF4R',
