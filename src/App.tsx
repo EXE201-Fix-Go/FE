@@ -20,7 +20,7 @@ import { ShopOwnerScreen } from './components/ShopOwnerScreen';
 import { SERVICES } from './data';
 import { EntryDestination, ScreenId, ServiceItem, UserRole } from './types';
 import { requestOtp, verifyOtp, logout, AppRole, AuthUser } from './api/auth';
-import { apiConfigured, setOnUnauthorized } from './api/client';
+import { ApiError, apiConfigured, setOnUnauthorized } from './api/client';
 import {
   Order, createOrder, confirmOrder, getOrder, getOrderStatus, cancelOrder, approveQuote, declineQuote, confirmPayment,
   submitReview,
@@ -43,6 +43,16 @@ const CUSTOMER_WATCH_SCREENS: ScreenId[] = [
   'customer_tracking',
   'customer_quote_review',
 ];
+
+/** Trạng thái hiện tại của đơn; backend cũ chưa có /status thì tải đơn đầy đủ. */
+async function pollStatus(id: string): Promise<string> {
+  try {
+    return (await getOrderStatus(id)).status;
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return (await getOrder(id)).status;
+    throw e;
+  }
+}
 
 function customerScreenFor(o: Order): ScreenId | null {
   switch (o.status) {
@@ -138,13 +148,9 @@ export default function App() {
       setAuthStep('otp');
       return;
     }
-    try {
-      const res = await requestOtp(p);
-      setOtp({ otpId: res.otpId, devCode: res.devCode });
-      setAuthStep('otp');
-    } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Không gửi được OTP.');
-    }
+    const res = await requestOtp(p);   // lỗi (429 quá số lần, mạng…) hiện ngay trên màn SĐT
+    setOtp({ otpId: res.otpId, devCode: res.devCode });
+    setAuthStep('otp');
   };
 
   // Bước 3: OTP hợp lệ → vào đúng app theo vai trò THẬT của tài khoản (ràng role ở backend)
@@ -206,8 +212,7 @@ export default function App() {
       if (inFlight) return; // không xếp chồng request khi mạng chậm
       inFlight = true;
       try {
-        const st = await getOrderStatus(currentOrder.id);
-        if (st.status === currentOrder.status) return;      // chưa đổi → không tải lại đơn đầy đủ
+        if ((await pollStatus(currentOrder.id)) === currentOrder.status) return; // chưa đổi → không tải lại đơn đầy đủ
         const o = await getOrder(currentOrder.id);
         setCurrentOrder(o);
         const target = customerScreenFor(o);
@@ -327,8 +332,7 @@ export default function App() {
       if (inFlight) return;
       inFlight = true;
       try {
-        const st = await getOrderStatus(activeOrder.id);
-        if (st.status === activeOrder.status) return;
+        if ((await pollStatus(activeOrder.id)) === activeOrder.status) return;
         const o = await getOrder(activeOrder.id);
         setActiveOrder(o);
         if (isTerminal(o.status)) {

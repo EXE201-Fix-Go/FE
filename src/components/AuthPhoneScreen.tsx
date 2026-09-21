@@ -3,7 +3,8 @@ import { ASSETS } from '../data';
 import { EntryDestination } from '../types';
 
 interface AuthPhoneScreenProps {
-  onSubmit: (phone: string) => void;
+  /** Gửi OTP; ném lỗi (vd quá số lần) → hiện ngay dưới nút. */
+  onSubmit: (phone: string) => Promise<void> | void;
   onBack?: () => void;
   dest?: EntryDestination;
 }
@@ -60,6 +61,20 @@ export const AuthPhoneScreen: React.FC<AuthPhoneScreenProps> = ({
   const [raw, setRaw] = useState('');
 
   const isValid = raw.length >= 9 && raw.length <= 11;
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const submit = async () => {
+    if (!isValid || sending) return;
+    setSending(true);
+    setError(null);
+    try {
+      await onSubmit(raw);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Không gửi được mã OTP.');
+    } finally {
+      setSending(false);
+    }
+  };
 
   const push = (d: string) => setRaw((p) => (p.length < 11 ? p + d : p));
   const backspace = () => setRaw((p) => p.slice(0, -1));
@@ -237,10 +252,16 @@ export const AuthPhoneScreen: React.FC<AuthPhoneScreenProps> = ({
 
         {/* 5. CTA + dòng tin cậy */}
         <div className="flex flex-col gap-space-sm pt-space-xs">
+          {error && (
+            <div role="alert" className="rounded-xl bg-error-container text-on-error-container font-body-sm px-[15px] py-2 flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px]">error</span>
+              <span>{error}</span>
+            </div>
+          )}
           <button
             type="button"
-            disabled={!isValid}
-            onClick={() => isValid && onSubmit(raw)}
+            disabled={!isValid || sending}
+            onClick={submit}
             className={`w-full min-h-[58px] rounded-2xl font-label-lg uppercase tracking-wider flex items-center justify-between px-space-md shadow-md transition-all ${
               isValid
                 ? 'bg-primary hover:bg-primary-container text-on-primary active:translate-y-0.5'
