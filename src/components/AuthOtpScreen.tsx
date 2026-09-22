@@ -93,7 +93,7 @@ export const AuthOtpScreen: React.FC<AuthOtpScreenProps> = ({
             >
               <span className="material-symbols-outlined text-[25px]">arrow_back</span>
             </button>
-            <img src={ASSETS.logo} alt="Fix&Go" className="h-12 w-auto object-contain" />
+            <img src={ASSETS.logo} alt="Fix&Go" className="h-14 w-auto object-contain" />
             <div className="w-11" aria-hidden="true" />
           </header>
 
