@@ -32,7 +32,9 @@ const BASE_URL: string = resolveBaseUrl();
  * Có backend để gọi hay không. Dev luôn có (localhost); bản build production (GitHub Pages) chỉ có khi
  * đặt VITE_API_BASE_URL lúc build — không có thì app chạy chế độ demo với dữ liệu mẫu.
  */
-export const apiConfigured: boolean = import.meta.env.DEV || !!import.meta.env.VITE_API_BASE_URL;
+
+// export const apiConfigured: boolean = import.meta.env.DEV || !!import.meta.env.VITE_API_BASE_URL;
+export const apiConfigured: boolean = import.meta.env.DEV || !!import.meta.env.VITE_API_BASE_URL || BASE_URL.includes('onrender');
 
 // Ghi nhớ đăng nhập: refresh token lưu bền ở localStorage để mở lại app vẫn còn phiên.
 // Access token vẫn CHỈ ở RAM (C-06). (Rủi ro XSS của localStorage: chấp nhận cho pilot web.)
