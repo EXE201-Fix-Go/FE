@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { listStaff, inviteStaff, getPartnerMe, Staff as ApiStaff } from '../api/partner';
+import { ASSETS } from '../data';
 
 interface ShopOwnerScreenProps {
   onBack: () => void;
@@ -85,26 +86,25 @@ export const ShopOwnerScreen: React.FC<ShopOwnerScreenProps> = ({ onBack, live }
   return (
     <div className="flex flex-col w-full bg-surface text-on-surface">
       {/* Header Partner */}
-      <header className="bg-inverse-surface text-inverse-on-surface shadow-lg">
+      <header className="border-b border-surface-container bg-surface-container-lowest text-on-surface shadow-sm">
         <div className="h-16 px-gutter flex items-center gap-space-sm">
           <button
             type="button"
             onClick={onBack}
             aria-label="Quay lại"
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-95 transition-all"
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container active:scale-95 transition-all"
           >
             <span className="material-symbols-outlined text-[24px]">arrow_back</span>
           </button>
+          <img src={ASSETS.logo} alt="Fix&Go" className="h-9 w-auto object-contain" />
           <div className="flex flex-col leading-tight min-w-0 flex-1">
-            <span className="font-label-sm uppercase tracking-wider text-tertiary-fixed">
-              Fix&amp;Go Partner
-            </span>
+            <span className="font-label-sm uppercase tracking-wider text-tertiary">Đối tác</span>
             <h1 className="font-headline-md text-[18px] truncate">Tiệm của tôi</h1>
           </div>
           <button
             type="button"
             aria-label="Cài đặt tiệm"
-            className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center"
+            className="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center"
           >
             <span className="material-symbols-outlined text-[20px]">settings</span>
           </button>

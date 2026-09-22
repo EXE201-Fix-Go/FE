@@ -19,7 +19,7 @@ export const AuthRoleSelectScreen: React.FC<AuthRoleSelectScreenProps> = ({ onSe
       {/* Thương hiệu */}
       <div className="pt-safe" />
       <div className="pt-space-lg flex flex-col items-center text-center">
-        <img src={ASSETS.logo} alt="Fix&Go" className="h-12 w-auto object-contain" />
+        <img src={ASSETS.logo} alt="Fix&Go" className="h-14 w-auto object-contain" />
         <h1 className="font-headline-lg text-on-surface mt-space-md">
           Fix&amp;Go đang phục vụ ai ạ?
         </h1>

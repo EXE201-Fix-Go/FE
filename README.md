@@ -17,11 +17,18 @@ npm run dev
 Mở `http://localhost:3000` (hoặc cổng Vite báo). Xem đúng dạng mobile: Chrome DevTools → device toolbar (Ctrl+Shift+M) → iPhone.
 
 ## Luồng chính
-Chọn vai trò → Nhập SĐT → OTP → vào đúng app theo vai trò (ràng role):
+Khách hàng và đối tác có URL đăng nhập riêng:
+
+- `http://localhost:3000/` hoặc `http://localhost:3000/customer/login` — khách hàng.
+- `http://localhost:3000/partner/login` — thợ/đối tác.
+
+Mỗi URL mở thẳng màn nhập số điện thoại, sau đó tới màn OTP và vào đúng app theo role thật do backend trả về:
 - **Khách hàng**: chọn dịch vụ → xác nhận (chọn thêm dịch vụ + ảnh hiện trường) → tìm thợ → theo dõi → duyệt báo giá → hóa đơn & đánh giá.
 - **Thợ độc lập**: nhận đơn → dẫn đường → lập báo giá.
 - **Tiệm sửa xe**: **Chủ tiệm** (quản lý & thêm thợ) hoặc **Nhân viên**.
 - **Đăng ký đối tác**: xác minh danh tính (KYC).
+
+Trang gốc `/` mặc định là đăng nhập khách hàng; không còn màn hình chọn vai trò. API OTP/JWT vẫn dùng chung; URL chỉ tách phần giao diện và entry point.
 
 > Deep-link cho dev/QA: `?screen=<id>` nhảy thẳng tới một màn (bỏ qua đăng nhập).
 

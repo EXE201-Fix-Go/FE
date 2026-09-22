@@ -11,11 +11,13 @@ import { CustomerHistoryScreen } from './components/CustomerHistoryScreen';
 import { CustomerOrderDetailScreen } from './components/CustomerOrderDetailScreen';
 import { CustomerProfileScreen } from './components/CustomerProfileScreen';
 import { MechanicDashboardScreen } from './components/MechanicDashboardScreen';
+import { MechanicIncomeScreen } from './components/MechanicIncomeScreen';
 import { MechanicNavigationScreen } from './components/MechanicNavigationScreen';
+import { MechanicProfileScreen } from './components/MechanicProfileScreen';
 import { MechanicQuoteCreateScreen } from './components/MechanicQuoteCreateScreen';
+import { MechanicReviewsScreen } from './components/MechanicReviewsScreen';
 import { AuthPhoneScreen } from './components/AuthPhoneScreen';
 import { AuthOtpScreen } from './components/AuthOtpScreen';
-import { AuthRoleSelectScreen } from './components/AuthRoleSelectScreen';
 import { PartnerRegisterScreen } from './components/PartnerRegisterScreen';
 import { ShopOwnerScreen } from './components/ShopOwnerScreen';
 import { NotificationHost, toast } from './components/notify';
@@ -35,8 +37,45 @@ import { uploadPhoto } from './api/uploads';
 import { getPartnerDashboard } from './api/partner';
 import { Coords, getCurrentPosition, GeoError, PILOT_FALLBACK, reverseGeocode } from './domain/geo';
 
-type AuthStep = 'phone' | 'otp' | 'role';
+type AuthStep = 'phone' | 'otp';
 export type LocationStatus = 'idle' | 'locating' | 'ready' | 'denied' | 'unsupported';
+
+type EntryRoute = {
+  dest: EntryDestination;
+};
+
+/**
+ * Login entry points are separate URLs, while the app remains a single SPA.
+ * The base-aware helpers also keep the routes working on the GitHub Pages `/FE/` base.
+ */
+function getAppPath(pathname: string): string {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+  if (base && (pathname === base || pathname.startsWith(`${base}/`))) {
+    return pathname.slice(base.length) || '/';
+  }
+  return pathname || '/';
+}
+
+function getEntryRoute(): EntryRoute {
+  if (typeof window === 'undefined') return { dest: 'customer' };
+
+  const path = getAppPath(window.location.pathname);
+  if (path === '/customer/login') {
+    return { dest: 'customer' };
+  }
+
+  if (path === '/partner/login') {
+    const requested = new URLSearchParams(window.location.search).get('dest');
+    const dest: EntryDestination =
+      requested === 'shop' || requested === 'staff' || requested === 'register'
+        ? requested
+        : 'mechanic';
+    return { dest };
+  }
+
+  // The customer login is the default entry point, including `/`.
+  return { dest: 'customer' };
+}
 
 /** Làng Đại học, Thủ Đức — khu vực pilot (BRD). Dùng khi chưa/không lấy được GPS thật. */
 const PILOT_LOCATION = { lat: 10.87, lng: 106.803 };
@@ -84,11 +123,14 @@ export default function App() {
   const params =
     typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
   const startScreen = params.get('screen') as ScreenId | null;
+  const entryRoute = getEntryRoute();
   const initialRole: UserRole =
     startScreen &&
     (startScreen.startsWith('mechanic_') || startScreen === 'shop_owner' || startScreen === 'partner_register')
       ? 'mechanic'
-      : 'customer';
+      : entryRoute.dest === 'customer'
+        ? 'customer'
+        : 'mechanic';
 
   const [activeScreen, setActiveScreen] = useState<ScreenId>(startScreen ?? 'customer_home');
   const [selectedService, setSelectedService] = useState<ServiceItem>(SERVICES[0]);
@@ -125,12 +167,12 @@ export default function App() {
 
   // ── Trạng thái đăng nhập ──────────────────────────────────────────
   const [authed, setAuthed] = useState<boolean>(!!startScreen);
-  const [authStep, setAuthStep] = useState<AuthStep>('role');
+  const [authStep, setAuthStep] = useState<AuthStep>('phone');
   const [phone, setPhone] = useState<string>('');
   const [otp, setOtp] = useState<{ otpId: string; devCode?: string | null } | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [role, setRole] = useState<UserRole>(initialRole);
-  const [pendingDest, setPendingDest] = useState<EntryDestination>('customer');
+  const [pendingDest, setPendingDest] = useState<EntryDestination>(entryRoute.dest);
   const live = !startScreen && apiConfigured; // deep-link hoặc build không có backend = chế độ demo
 
   // ── Ghi nhớ đăng nhập: khôi phục phiên từ refresh token đã lưu ─────
@@ -187,10 +229,11 @@ export default function App() {
 
   const resetAll = useCallback(() => {
     setAuthed(false);
-    setAuthStep('role');
+    setAuthStep('phone');
     setPhone('');
     setOtp(null);
     setUser(null);
+    setPendingDest(getEntryRoute().dest);
     setCurrentOrder(null);
     setProfile(null);
     setOffers([]);
@@ -211,13 +254,19 @@ export default function App() {
     resetAll();
   };
 
-  // Bước 1: chọn vai trò → sang nhập SĐT (chưa đăng nhập)
-  const handleRoleSelected = (dest: EntryDestination) => {
+  const handlePartnerDestChange = useCallback((dest: EntryDestination) => {
+    if (dest !== 'mechanic' && dest !== 'shop' && dest !== 'staff') return;
     setPendingDest(dest);
-    setAuthStep('phone');
-  };
 
-  // Bước 2: nhập SĐT → backend gửi OTP (dev: trả devCode)
+    // Giữ lựa chọn khi người dùng refresh hoặc chia sẻ deep-link đăng nhập đối tác.
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (dest === 'mechanic') url.searchParams.delete('dest');
+    else url.searchParams.set('dest', dest);
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, []);
+
+  // Bước 1: nhập SĐT → backend gửi OTP (dev: trả devCode)
   const handlePhoneSubmit = async (p: string) => {
     setPhone(p);
     if (!live) {
@@ -247,7 +296,7 @@ export default function App() {
         break;
       case 'P_SHOP':
         setRole('mechanic');
-        setActiveScreen(pendingDest === 'customer' ? 'shop_owner' : pendingDest === 'shop' ? 'shop_owner' : 'mechanic_dashboard');
+        setActiveScreen('shop_owner');
         if (pendingDest === 'customer') toast('Số này là tài khoản chủ tiệm — đã chuyển sang app Đối tác.', 'info');
         break;
       case 'P_IND':
@@ -269,7 +318,15 @@ export default function App() {
     if (!live) {
       // Demo: vào đúng app theo vai trò đã chọn, dữ liệu mẫu
       const demoRole: AppRole =
-        pendingDest === 'customer' ? 'CUSTOMER' : pendingDest === 'shop' ? 'P_SHOP' : pendingDest === 'register' ? 'CUSTOMER' : 'P_IND';
+        pendingDest === 'customer'
+          ? 'CUSTOMER'
+          : pendingDest === 'shop'
+            ? 'P_SHOP'
+            : pendingDest === 'staff'
+              ? 'P_STAFF'
+              : pendingDest === 'register'
+                ? 'CUSTOMER'
+                : 'P_IND';
       routeAfterAuth(demoRole);
       return;
     }
@@ -402,7 +459,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!live || activeScreen !== 'mechanic_dashboard') return;
+    if (
+      !live ||
+      (activeScreen !== 'mechanic_dashboard' &&
+        activeScreen !== 'mechanic_income' &&
+        activeScreen !== 'mechanic_reviews' &&
+        activeScreen !== 'mechanic_profile')
+    ) return;
     let cancelled = false;
     partnerInFlight.current = false;   // vừa quay về dashboard: làm mới ngay, không chờ request cũ
     (async () => {
@@ -479,17 +542,21 @@ export default function App() {
     );
   }
 
-  // ── Luồng: Chọn vai trò → SĐT → OTP → vào đúng app ───────────────
+  // ── Luồng: URL đăng nhập → SĐT → OTP → vào đúng app ──────────────
   if (!authed) {
     return (
       <div className="flex flex-col min-h-screen w-full max-w-md mx-auto bg-surface relative shadow-2xl overflow-x-hidden">
-        {authStep === 'role' && <AuthRoleSelectScreen onSelect={handleRoleSelected} />}
         {authStep === 'phone' && (
-          <AuthPhoneScreen dest={pendingDest} onBack={() => setAuthStep('role')} onSubmit={handlePhoneSubmit} />
+          <AuthPhoneScreen
+            dest={pendingDest}
+            onDestChange={handlePartnerDestChange}
+            onSubmit={handlePhoneSubmit}
+          />
         )}
         {authStep === 'otp' && (
           <AuthOtpScreen
             phone={phone}
+            dest={pendingDest}
             devCode={otp?.devCode}
             onBack={() => setAuthStep('phone')}
             onVerify={handleVerify}
@@ -700,7 +767,9 @@ export default function App() {
         {activeScreen === 'mechanic_dashboard' && (
           <MechanicDashboardScreen
             onAcceptJob={() => setActiveScreen('mechanic_navigation')}
-            onLogout={backToEntry}
+            onOpenIncome={() => setActiveScreen('mechanic_income')}
+            onOpenReviews={() => setActiveScreen('mechanic_reviews')}
+            onOpenProfile={() => setActiveScreen('mechanic_profile')}
             live={
               live
                 ? {
@@ -728,6 +797,42 @@ export default function App() {
                   }
                 : undefined
             }
+          />
+        )}
+
+        {activeScreen === 'mechanic_income' && (
+          <MechanicIncomeScreen
+            displayName={profile?.fullName || user?.fullName}
+            stats={stats}
+            live={live}
+            onRescue={() => setActiveScreen('mechanic_dashboard')}
+            onReviews={() => setActiveScreen('mechanic_reviews')}
+            onProfile={() => setActiveScreen('mechanic_profile')}
+          />
+        )}
+
+        {activeScreen === 'mechanic_reviews' && (
+          <MechanicReviewsScreen
+            displayName={profile?.fullName || user?.fullName}
+            stats={stats}
+            live={live}
+            onRescue={() => setActiveScreen('mechanic_dashboard')}
+            onIncome={() => setActiveScreen('mechanic_income')}
+            onProfile={() => setActiveScreen('mechanic_profile')}
+          />
+        )}
+
+        {activeScreen === 'mechanic_profile' && (
+          <MechanicProfileScreen
+            profile={profile}
+            stats={stats}
+            live={live}
+            displayName={user?.fullName}
+            phone={user?.phone}
+            onRescue={() => setActiveScreen('mechanic_dashboard')}
+            onIncome={() => setActiveScreen('mechanic_income')}
+            onReviews={() => setActiveScreen('mechanic_reviews')}
+            onLogout={backToEntry}
           />
         )}
 

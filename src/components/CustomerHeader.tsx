@@ -41,7 +41,7 @@ export const CustomerHeader: React.FC<CustomerHeaderProps> = ({
             <img
               alt="Fix&Go"
               src={ASSETS.logo}
-              className="h-8 w-auto object-contain flex-shrink-0"
+              className="h-9 w-auto object-contain flex-shrink-0"
             />
           )}
 

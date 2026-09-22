@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { ASSETS } from '../data';
 import { Offer, PartnerProfile, PartnerStats } from '../api/partner';
 import { ServerMessage } from './ServerMessage';
-import { toast } from './notify';
 import { formatVND } from '../domain/money';
 import { ORDER_STATUS_LABEL } from '../domain/status';
+import { MechanicBottomNav } from './MechanicBottomNav';
 
 /** Dữ liệu thật từ backend; không có → chạy demo với đơn mẫu. */
 export interface MechanicDashboardLive {
@@ -21,13 +21,17 @@ export interface MechanicDashboardLive {
 
 interface MechanicDashboardProps {
   onAcceptJob: () => void;
-  onLogout: () => void;
+  onOpenIncome: () => void;
+  onOpenReviews: () => void;
+  onOpenProfile: () => void;
   live?: MechanicDashboardLive;
 }
 
 export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
   onAcceptJob,
-  onLogout,
+  onOpenIncome,
+  onOpenReviews,
+  onOpenProfile,
   live,
 }) => {
   const [isReady, setIsReady] = useState(true);
@@ -108,7 +112,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
             <div className="flex items-center gap-space-sm">
               <img
                 alt="Brand logo"
-                className="h-8 w-auto object-contain"
+                className="h-9 w-auto object-contain"
                 src={ASSETS.logo}
               />
               <div className="flex flex-col">
@@ -148,11 +152,12 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
               </button>
 
               <button
-                onClick={onLogout}
-                className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0 text-on-primary hover:opacity-90 active:scale-95 transition-all shadow-sm"
-                title="Đăng xuất"
+                onClick={onOpenProfile}
+                className="w-9 h-9 rounded-full bg-primary flex items-center justify-center shrink-0 text-on-primary hover:opacity-90 active:scale-95 transition-all shadow-sm"
+                title="Mở tài khoản"
+                aria-label="Mở trang tài khoản"
               >
-                <span className="material-symbols-outlined text-[18px]">logout</span>
+                <span className="material-symbols-outlined text-[21px]">account_circle</span>
               </button>
             </div>
           </div>
@@ -550,50 +555,13 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
         </section>
       </main>
 
-      {/* Mechanic Bottom Nav */}
-      <nav className="fixed bottom-0 inset-x-0 max-w-md mx-auto z-40 pb-safe bg-surface-container-lowest/95 backdrop-blur-xl shadow-[0_-4px_16px_rgba(11,28,48,0.06)] border-t border-surface-container">
-        <div className="flex justify-around items-center h-16 px-gutter max-w-md mx-auto">
-          <button
-            className="flex flex-col items-center justify-center gap-0.5 min-w-[56px] min-h-[44px] text-primary font-bold active:scale-95"
-            type="button"
-          >
-            <span
-              className="material-symbols-outlined text-[24px]"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              build
-            </span>
-            <span className="font-label-sm text-[11px]">Cứu hộ</span>
-          </button>
-
-          <button
-            onClick={() => toast('Thu nhập hôm nay: 480.000 ₫ • Tháng này: 12.450.000 ₫', 'info')}
-            className="flex flex-col items-center justify-center gap-0.5 min-w-[56px] min-h-[44px] text-secondary hover:text-on-surface transition-colors active:scale-95"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[24px]">account_balance_wallet</span>
-            <span className="font-label-sm text-[11px]">Thu nhập</span>
-          </button>
-
-          <button
-            onClick={() => toast('Đánh giá 4.9 sao • 52 đánh giá tích cực trong tháng', 'info')}
-            className="flex flex-col items-center justify-center gap-0.5 min-w-[56px] min-h-[44px] text-secondary hover:text-on-surface transition-colors active:scale-95"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[24px]">star</span>
-            <span className="font-label-sm text-[11px]">Đánh giá</span>
-          </button>
-
-          <button
-            onClick={onLogout}
-            className="flex flex-col items-center justify-center gap-0.5 min-w-[56px] min-h-[44px] text-secondary hover:text-on-surface transition-colors active:scale-95"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[24px]">logout</span>
-            <span className="font-label-sm text-[11px]">Đăng xuất</span>
-          </button>
-        </div>
-      </nav>
+      <MechanicBottomNav
+        activeTab="rescue"
+        onRescue={() => undefined}
+        onIncome={onOpenIncome}
+        onReviews={onOpenReviews}
+        onProfile={onOpenProfile}
+      />
     </div>
   );
 };
