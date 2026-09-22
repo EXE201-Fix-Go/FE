@@ -9,7 +9,7 @@
  */
 function resolveBaseUrl(): string {
   const configured =
-    (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8080/api/v1';
+    (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'https://fixgo-be-cmlq.onrender.com/api/v1';
   try {
     if (typeof window === 'undefined') return configured;
     const url = new URL(configured, window.location.origin);
