@@ -46,7 +46,7 @@ export interface Staff {
   availability: 'ONLINE' | 'BUSY' | 'OFFLINE';
 }
 export interface QuoteLineInput {
-  itemType: 'LABOR' | 'PART' | 'SURCHARGE' | 'DISCOUNT' | 'SUPPORT';
+  itemType: 'LABOR' | 'PART' | 'SURCHARGE' | 'DISCOUNT' | 'SUPPORT' | 'TRAVEL';
   description: string;
   quantity: number;
   unitPrice: number;
@@ -78,8 +78,12 @@ export const updatePresence = (availability: PartnerProfile['availability'], lat
 
 export const listOffers = () => api<Offer[]>('/partner/offers');
 export const listJobs = () => api<Offer[]>('/partner/jobs');
-export const acceptOffer = (assignmentId: string) =>
-  api<Offer>(`/partner/offers/${assignmentId}/accept`, { method: 'POST' });
+/** Nhận đơn; kèm toạ độ GPS hiện tại của thợ (nếu có) để backend tính phí di chuyển từ đó. */
+export const acceptOffer = (assignmentId: string, coords?: { lat: number; lng: number }) =>
+  api<Offer>(`/partner/offers/${assignmentId}/accept`, {
+    method: 'POST',
+    body: coords ? { lat: coords.lat, lng: coords.lng } : undefined,
+  });
 export const declineOffer = (assignmentId: string, reason?: string) =>
   api<void>(`/partner/offers/${assignmentId}/decline`, { method: 'POST', body: { reason } });
 

@@ -1,15 +1,27 @@
 import React, { useState } from 'react';
 import { DEFAULT_MECHANIC, SERVICES } from '../data';
 import { QuoteLineInput } from '../api/partner';
+import { formatVND } from '../domain/money';
+import { ServerMessage } from './ServerMessage';
 
-type Line = { id: string; name: string; price: number; checked: boolean; required: boolean; type: QuoteLineInput['itemType'] };
+/** Nhóm phí hiển thị: cố định (gọi thợ + dịch vụ) · linh kiện · phụ phí & ưu đãi. Phí di chuyển tách riêng (read-only). */
+type Group = 'fixed' | 'parts' | 'extra';
+type Line = {
+  id: string;
+  name: string;
+  price: number;
+  checked: boolean;
+  required: boolean;
+  type: QuoteLineInput['itemType'];
+  group: Group;
+};
 
 const DEMO_LINES: Line[] = [
-  { id: 'callout', name: 'Phí xuất phát cứu hộ cố định', price: 30000, checked: true, required: true, type: 'SURCHARGE' },
-  { id: 'labor', name: 'Tiền công rút đinh & kiểm tra', price: 40000, checked: true, required: true, type: 'LABOR' },
-  { id: 'patch', name: 'Miếng vá nấm cao su Japan Tech', price: 50000, checked: true, required: false, type: 'PART' },
-  { id: 'night', name: 'Phụ phí an toàn ban đêm (Sau 22:00)', price: 20000, checked: true, required: false, type: 'SURCHARGE' },
-  { id: 'promo', name: 'Ưu đãi Fix&Go chào bạn mới', price: -20000, checked: true, required: false, type: 'DISCOUNT' },
+  { id: 'callout', name: 'Phí xuất phát cứu hộ cố định', price: 30000, checked: true, required: true, type: 'SURCHARGE', group: 'fixed' },
+  { id: 'labor', name: 'Tiền công rút đinh & kiểm tra', price: 40000, checked: true, required: true, type: 'LABOR', group: 'fixed' },
+  { id: 'patch', name: 'Miếng vá nấm cao su Japan Tech', price: 50000, checked: true, required: false, type: 'PART', group: 'parts' },
+  { id: 'night', name: 'Phụ phí an toàn ban đêm (Sau 22:00)', price: 20000, checked: true, required: false, type: 'SURCHARGE', group: 'extra' },
+  { id: 'promo', name: 'Ưu đãi Fix&Go chào bạn mới', price: -20000, checked: true, required: false, type: 'DISCOUNT', group: 'extra' },
 ];
 
 /** Dòng báo giá sinh từ đơn thật: phí gọi thợ + dịch vụ chính + dịch vụ phụ khách chọn (giá niêm yết) + gợi ý thêm. */
@@ -17,15 +29,15 @@ function linesFromOrder(callOutFee: number, serviceId: string, extraServiceIds: 
   const svc = (code: string) => SERVICES.find((s) => s.id === code);
   const main = svc(serviceId);
   const lines: Line[] = [
-    { id: 'callout', name: 'Phí gọi thợ (khách đã xác nhận)', price: callOutFee, checked: true, required: true, type: 'SURCHARGE' },
-    { id: `svc:${serviceId}`, name: main?.name ?? serviceId, price: main?.price ?? 0, checked: true, required: true, type: 'LABOR' },
+    { id: 'callout', name: 'Phí gọi thợ (khách đã xác nhận)', price: callOutFee, checked: true, required: true, type: 'SURCHARGE', group: 'fixed' },
+    { id: `svc:${serviceId}`, name: main?.name ?? serviceId, price: main?.price ?? 0, checked: true, required: true, type: 'LABOR', group: 'fixed' },
     ...extraServiceIds.map((code) => {
       const e = svc(code);
-      return { id: `svc:${code}`, name: `${e?.name ?? code} (khách chọn thêm)`, price: e?.price ?? 0, checked: true, required: false, type: 'LABOR' as const };
+      return { id: `svc:${code}`, name: `${e?.name ?? code} (khách chọn thêm)`, price: e?.price ?? 0, checked: true, required: false, type: 'LABOR' as const, group: 'fixed' as const };
     }),
-    { id: 'part', name: 'Linh kiện thay thế (nếu có)', price: 50000, checked: false, required: false, type: 'PART' },
-    { id: 'night', name: 'Phụ phí ban đêm (sau 22:00)', price: 20000, checked: false, required: false, type: 'SURCHARGE' },
-    { id: 'promo', name: 'Ưu đãi Fix&Go khách mới', price: -20000, checked: false, required: false, type: 'DISCOUNT' },
+    { id: 'part', name: 'Linh kiện thay thế (nếu có)', price: 50000, checked: false, required: false, type: 'PART', group: 'parts' },
+    { id: 'night', name: 'Phụ phí ban đêm (sau 22:00)', price: 20000, checked: false, required: false, type: 'SURCHARGE', group: 'extra' },
+    { id: 'promo', name: 'Ưu đãi Fix&Go khách mới', price: -20000, checked: false, required: false, type: 'DISCOUNT', group: 'extra' },
   ];
   return lines;
 }
@@ -43,6 +55,8 @@ interface MechanicQuoteCreateProps {
     contactPhone?: string | null;
     approvedTotal?: number | null;
     callOutFee: number;
+    travelDistanceKm?: number | null;
+    travelFee?: number | null;
     serviceId: string;
     extraServiceIds: string[];
     quoteRevision?: number | null;
@@ -78,7 +92,12 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
     );
   };
 
-  const totalPrice = items.reduce((sum, it) => (it.checked ? sum + it.price : sum), 0);
+  const travelKm = live?.travelDistanceKm ?? 0;
+  const travelFee = live?.travelFee ?? 0;
+  const totalPrice = items.reduce((sum, it) => (it.checked ? sum + it.price : sum), 0) + travelFee;
+  const fixedLines = items.filter((it) => it.group === 'fixed');
+  const partLines = items.filter((it) => it.group === 'parts');
+  const extraLines = items.filter((it) => it.group === 'extra');
 
   const handleSendToCustomer = async () => {
     setSending(true);
@@ -168,9 +187,9 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
         </p>
       </div>
 
-      {/* Itemized pricing checklist */}
-      <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-surface-container space-y-space-sm">
-        <div className="flex items-center justify-between pb-1 border-b border-surface-container">
+      {/* Bảng kê chi phí — gom thành các box theo nhóm */}
+      <div className="space-y-space-sm">
+        <div className="flex items-center justify-between px-1">
           <h3 className="font-label-md text-label-md text-on-surface font-bold">
             Bảng kê chi phí sửa chữa
           </h3>
@@ -179,44 +198,32 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
           </span>
         </div>
 
-        <div className="space-y-2.5">
-          {items.map((it) => (
-            <div
-              key={it.id}
-              onClick={() => toggleItem(it.id)}
-              className={`flex items-center justify-between p-2.5 rounded-lg transition-colors border ${
-                editable ? 'cursor-pointer' : 'cursor-default'
-              } ${
-                it.checked
-                  ? 'bg-surface-container-low border-primary/20'
-                  : 'bg-surface-container border-transparent opacity-60'
-              }`}
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <input
-                  type="checkbox"
-                  checked={it.checked}
-                  readOnly
-                  className="w-4 h-4 rounded text-primary focus:ring-primary"
-                />
-                <span className="font-body-sm text-[13px] text-on-surface font-medium truncate">
-                  {it.name}
-                </span>
+        <FeeGroup group="fixed" items={fixedLines} editable={editable} onToggle={toggleItem} />
+
+        {travelFee > 0 && (
+          <div className="bg-surface-container-lowest rounded-xl border border-surface-container shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-space-md py-2.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="material-symbols-outlined text-primary text-[18px]">two_wheeler</span>
+                <div className="min-w-0">
+                  <p className="font-label-md text-label-md text-on-surface font-bold leading-tight">Phí di chuyển</p>
+                  <p className="font-label-sm text-[11px] text-secondary truncate">
+                    {travelKm} km × đơn giá hệ thống · tự động, không sửa
+                  </p>
+                </div>
               </div>
-              <span
-                className={`font-label-md text-label-md tabular-nums font-bold ${
-                  it.price < 0 ? 'text-tertiary' : 'text-on-surface'
-                }`}
-              >
-                {it.price > 0
-                  ? `${it.price.toLocaleString('vi-VN')} ₫`
-                  : `-${Math.abs(it.price).toLocaleString('vi-VN')} ₫`}
+              <span className="font-label-md text-label-md tabular-nums font-bold text-on-surface whitespace-nowrap">
+                {formatVND(travelFee)}
               </span>
             </div>
-          ))}
-        </div>
+          </div>
+        )}
 
-        <div className="pt-2 border-t border-surface-container flex items-center justify-between">
+        <FeeGroup group="parts" items={partLines} editable={editable} onToggle={toggleItem} />
+        <FeeGroup group="extra" items={extraLines} editable={editable} onToggle={toggleItem} />
+
+        {/* Tổng báo giá */}
+        <div className="p-space-md rounded-xl bg-surface-container-high/60 border border-surface-container flex items-center justify-between">
           <div>
             <span className="font-label-sm text-[11px] text-secondary uppercase font-bold block">
               Tổng báo giá gửi khách
@@ -226,19 +233,14 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
             </span>
           </div>
           <span className="font-data-metric-lg text-primary font-extrabold">
-            {totalPrice.toLocaleString('vi-VN')} ₫
+            {formatVND(totalPrice)}
           </span>
         </div>
       </div>
 
       {/* Action triggers */}
       <div className="space-y-2 pt-2">
-        {error && (
-          <div role="alert" className="rounded-xl bg-error-container text-on-error-container font-body-sm px-[15px] py-2 flex items-center gap-2">
-            <span className="material-symbols-outlined text-[18px]">error</span>
-            <span>{error}</span>
-          </div>
-        )}
+        {error && <ServerMessage variant="error">{error}</ServerMessage>}
         {editable ? (
           <div className="space-y-2">
             <button
@@ -316,6 +318,63 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
             </button>
           </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+const GROUP_META: Record<Group, { title: string; subtitle: string; icon: string }> = {
+  fixed: { title: 'Phí cố định', subtitle: 'Phí gọi thợ + dịch vụ khách đã chọn', icon: 'verified' },
+  parts: { title: 'Linh kiện phụ tùng', subtitle: 'Vật tư thay thế (nếu có)', icon: 'build' },
+  extra: { title: 'Phụ phí & ưu đãi', subtitle: 'Phụ phí phát sinh · khuyến mãi', icon: 'more_horiz' },
+};
+
+/** Một box nhóm phí: tiêu đề + subtotal + các dòng chọn/bỏ. */
+const FeeGroup: React.FC<{ group: Group; items: Line[]; editable: boolean; onToggle: (id: string) => void }> = ({
+  group,
+  items,
+  editable,
+  onToggle,
+}) => {
+  if (items.length === 0) return null;
+  const meta = GROUP_META[group];
+  const subtotal = items.reduce((s, it) => (it.checked ? s + it.price : s), 0);
+  return (
+    <div className="bg-surface-container-lowest rounded-xl border border-surface-container shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between px-space-md py-2.5 bg-surface-container-low/60 border-b border-surface-container">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="material-symbols-outlined text-primary text-[18px]">{meta.icon}</span>
+          <div className="min-w-0">
+            <p className="font-label-md text-label-md text-on-surface font-bold leading-tight">{meta.title}</p>
+            <p className="font-label-sm text-[11px] text-secondary truncate">{meta.subtitle}</p>
+          </div>
+        </div>
+        <span className="font-label-md text-label-md tabular-nums font-bold text-on-surface whitespace-nowrap">
+          {subtotal < 0 ? `-${formatVND(Math.abs(subtotal))}` : formatVND(subtotal)}
+        </span>
+      </div>
+      <div className="p-space-sm space-y-2">
+        {items.map((it) => (
+          <div
+            key={it.id}
+            onClick={() => onToggle(it.id)}
+            className={`flex items-center justify-between p-2.5 rounded-lg border transition-colors ${
+              editable && !it.required ? 'cursor-pointer' : 'cursor-default'
+            } ${it.checked ? 'bg-surface-container-low border-primary/20' : 'bg-surface-container border-transparent opacity-60'}`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <input type="checkbox" checked={it.checked} readOnly className="w-4 h-4 rounded text-primary focus:ring-primary" />
+              <span className="font-body-sm text-[13px] text-on-surface font-medium truncate">{it.name}</span>
+            </div>
+            <span
+              className={`font-label-md text-label-md tabular-nums font-bold ${
+                it.price < 0 ? 'text-tertiary' : 'text-on-surface'
+              }`}
+            >
+              {it.price < 0 ? `-${formatVND(Math.abs(it.price))}` : formatVND(it.price)}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );

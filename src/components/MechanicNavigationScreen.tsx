@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ASSETS } from '../data';
+import { toast } from './notify';
 
 interface MechanicNavigationProps {
   /** Bấm "Đã tới nơi" — khi nối backend là async (ARRIVED → CHECKING). */
@@ -117,7 +118,7 @@ export const MechanicNavigationScreen: React.FC<MechanicNavigationProps> = ({
               <span className="material-symbols-outlined text-[20px]">call</span>
             </a>
             <button
-              onClick={() => alert('Đã gửi tin nhắn: "Tôi sắp đến nơi, cách 300m nữa nhé!"')}
+              onClick={() => toast('Đã gửi tin nhắn: "Tôi sắp đến nơi, cách 300m nữa nhé!"', 'success')}
               className="w-11 h-11 rounded-full bg-surface-container text-on-surface flex items-center justify-center shadow-sm active:scale-95"
             >
               <span className="material-symbols-outlined text-[20px]">chat</span>

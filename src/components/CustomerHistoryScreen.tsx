@@ -1,16 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { listMyOrders, Order } from '../api/orders';
 import { apiConfigured } from '../api/client';
+import { ServerMessage } from './ServerMessage';
 import { ORDER_STATUS_LABEL, isTerminal } from '../domain/status';
 import { formatVND } from '../domain/money';
 import { SERVICES } from '../data';
 
 interface CustomerHistoryProps {
   onBackToHome: () => void;
-  /** Mở hóa đơn của một đơn đã hoàn tất. */
-  onViewInvoice: (order: Order) => void;
-  /** Mở lại một đơn đang chạy (theo dõi / duyệt giá). */
-  onResume?: (order: Order) => void;
+  /** Mở màn chi tiết cho bất kỳ đơn nào (kể cả đã huỷ / hết hạn). */
+  onOpen: (order: Order) => void;
 }
 
 const STATUS_TONE: Record<string, string> = {
@@ -44,8 +43,7 @@ const DEMO_ORDERS: Order[] = [
 /** Bảng đơn hàng thật của khách — dữ liệu từ backend (GET /orders). */
 export const CustomerHistoryScreen: React.FC<CustomerHistoryProps> = ({
   onBackToHome,
-  onViewInvoice,
-  onResume,
+  onOpen,
 }) => {
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,10 +77,12 @@ export const CustomerHistoryScreen: React.FC<CustomerHistoryProps> = ({
       </div>
 
       {error && (
-        <div role="alert" className="rounded-xl bg-error-container text-on-error-container font-body-sm px-[15px] py-2 flex items-center justify-between gap-2">
-          <span>{error}</span>
-          <button type="button" onClick={load} className="font-label-sm underline">Thử lại</button>
-        </div>
+        <ServerMessage variant="error">
+          <span className="flex items-center justify-between gap-2 w-full">
+            <span>{error}</span>
+            <button type="button" onClick={load} className="font-label-sm underline whitespace-nowrap">Thử lại</button>
+          </span>
+        </ServerMessage>
       )}
 
       {orders === null && !error && (
@@ -110,14 +110,13 @@ export const CustomerHistoryScreen: React.FC<CustomerHistoryProps> = ({
             </thead>
             <tbody className="divide-y divide-surface-container">
               {orders.map((o) => {
-                const done = o.status === 'COMPLETED';
                 const running = !isTerminal(o.status);
                 const tone = STATUS_TONE[o.status] ?? 'bg-primary-fixed text-on-primary-fixed';
                 return (
                   <tr
                     key={o.id}
-                    onClick={() => (done ? onViewInvoice(o) : running ? onResume?.(o) : undefined)}
-                    className={done || running ? 'cursor-pointer active:bg-surface-container-low' : ''}
+                    onClick={() => onOpen(o)}
+                    className="cursor-pointer active:bg-surface-container-low"
                   >
                     <td className="px-[15px] py-3 align-top">
                       <div className="font-label-md text-on-surface font-bold">{serviceName(o)}</div>
@@ -131,9 +130,9 @@ export const CustomerHistoryScreen: React.FC<CustomerHistoryProps> = ({
                       <span className={`inline-block px-2 py-0.5 rounded-full font-label-sm text-[11px] font-bold ${tone}`}>
                         {ORDER_STATUS_LABEL[o.status] ?? o.status}
                       </span>
-                      {running && (
-                        <div className="font-label-sm text-[11px] text-primary mt-1">Bấm để mở ›</div>
-                      )}
+                      <div className="font-label-sm text-[11px] text-primary mt-1">
+                        {running ? 'Đang chạy · xem ›' : 'Xem chi tiết ›'}
+                      </div>
                     </td>
                     <td className="px-[15px] py-3 align-top text-right font-label-md text-on-surface font-bold tabular-nums whitespace-nowrap">
                       {formatVND(amount(o))}

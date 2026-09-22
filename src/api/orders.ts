@@ -5,7 +5,7 @@ import { OrderStatus } from '../domain/status';
 export interface QuoteItem {
   id: string;
   lineNo: number;
-  itemType: 'LABOR' | 'PART' | 'SURCHARGE' | 'DISCOUNT' | 'SUPPORT';
+  itemType: 'LABOR' | 'PART' | 'SURCHARGE' | 'DISCOUNT' | 'SUPPORT' | 'TRAVEL';
   description: string;
   quantity: number;
   unitPrice: number;
@@ -20,6 +20,7 @@ export interface Quote {
   status: 'DRAFT' | 'SENT' | 'APPROVED' | 'DECLINED' | 'SUPERSEDED' | 'EXPIRED';
   callOutFeeAmount: number;
   laborAmount: number;
+  travelAmount: number;
   partsAmount: number;
   surchargeAmount: number;
   discountAmount: number;
@@ -51,6 +52,8 @@ export interface Order {
   lat: number;
   lng: number;
   callOutFee: number;
+  travelDistanceKm?: number | null;
+  travelFee?: number | null;
   createdAt: string;
   confirmedAt?: string | null;
   completedAt?: string | null;

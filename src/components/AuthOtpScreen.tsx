@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ASSETS } from '../data';
+import { ServerMessage } from './ServerMessage';
 
 interface AuthOtpScreenProps {
   phone: string;
@@ -188,10 +189,7 @@ export const AuthOtpScreen: React.FC<AuthOtpScreenProps> = ({
           </div>
 
           {error && (
-            <div role="alert" className="w-full rounded-xl bg-error-container text-on-error-container font-body-sm px-space-sm py-2 flex items-center gap-2">
-              <span className="material-symbols-outlined text-[18px]">error</span>
-              <span>{error}</span>
-            </div>
+            <ServerMessage variant="error" className="w-full">{error}</ServerMessage>
           )}
           {devCode && (
             <button

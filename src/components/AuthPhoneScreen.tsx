@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ASSETS } from '../data';
 import { EntryDestination } from '../types';
+import { ServerMessage } from './ServerMessage';
 
 interface AuthPhoneScreenProps {
   /** Gửi OTP; ném lỗi (vd quá số lần) → hiện ngay dưới nút. */
@@ -253,10 +254,7 @@ export const AuthPhoneScreen: React.FC<AuthPhoneScreenProps> = ({
         {/* 5. CTA + dòng tin cậy */}
         <div className="flex flex-col gap-space-sm pt-space-xs">
           {error && (
-            <div role="alert" className="rounded-xl bg-error-container text-on-error-container font-body-sm px-[15px] py-2 flex items-center gap-2">
-              <span className="material-symbols-outlined text-[18px]">error</span>
-              <span>{error}</span>
-            </div>
+            <ServerMessage variant="error">{error}</ServerMessage>
           )}
           <button
             type="button"

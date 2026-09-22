@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ASSETS, DEFAULT_MECHANIC } from '../data';
 import { Order } from '../api/orders';
+import { ServerMessage } from './ServerMessage';
 import { formatVND } from '../domain/money';
 
 interface CustomerCompletedProps {
@@ -218,10 +219,7 @@ export const CustomerCompletedScreen: React.FC<CustomerCompletedProps> = ({
           </p>
         )}
         {error && (
-          <div role="alert" className="rounded-xl bg-error-container text-on-error-container font-body-sm px-[15px] py-2 flex items-center gap-2">
-            <span className="material-symbols-outlined text-[18px]">error</span>
-            <span>{error}</span>
-          </div>
+          <ServerMessage variant="error">{error}</ServerMessage>
         )}
       </div>
 

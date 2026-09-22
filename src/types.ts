@@ -6,6 +6,7 @@ export type ScreenId =
   | 'customer_quote_review'
   | 'customer_completed'
   | 'customer_history'
+  | 'customer_order_detail'
   | 'customer_profile'
   | 'mechanic_dashboard'
   | 'mechanic_navigation'

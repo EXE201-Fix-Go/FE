@@ -2,8 +2,31 @@
 // Xác thực bằng JWT tự quản (CLAUDE.md C-06): access token GIỮ TRONG BỘ NHỚ (không localStorage),
 // chỉ refresh token mới lưu bền (expo-secure-store ở app RN). KHÔNG lưu mật khẩu.
 
-const BASE_URL: string =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8080/api/v1';
+/**
+ * Địa chỉ backend. Nếu cấu hình trỏ 'localhost' nhưng trang lại mở qua IP/host khác
+ * (test trên điện thoại cùng mạng LAN), tự đổi host của API theo host của trang —
+ * vì 'localhost' trên điện thoại là chính điện thoại, không phải máy chạy backend.
+ */
+function resolveBaseUrl(): string {
+  const configured =
+    (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8080/api/v1';
+  try {
+    if (typeof window === 'undefined') return configured;
+    const url = new URL(configured, window.location.origin);
+    const pageHost = window.location.hostname;
+    const apiIsLocal = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    const pageIsLocal = pageHost === 'localhost' || pageHost === '127.0.0.1';
+    if (apiIsLocal && !pageIsLocal && pageHost) {
+      url.hostname = pageHost;
+      return url.toString().replace(/\/$/, '');
+    }
+    return configured;
+  } catch {
+    return configured;
+  }
+}
+
+const BASE_URL: string = resolveBaseUrl();
 
 /**
  * Có backend để gọi hay không. Dev luôn có (localhost); bản build production (GitHub Pages) chỉ có khi
@@ -11,13 +34,33 @@ const BASE_URL: string =
  */
 export const apiConfigured: boolean = import.meta.env.DEV || !!import.meta.env.VITE_API_BASE_URL;
 
+// Ghi nhớ đăng nhập: refresh token lưu bền ở localStorage để mở lại app vẫn còn phiên.
+// Access token vẫn CHỈ ở RAM (C-06). (Rủi ro XSS của localStorage: chấp nhận cho pilot web.)
+const RT_KEY = 'fixgo.rt';
+function loadStoredRefresh(): string | null {
+  try {
+    return localStorage.getItem(RT_KEY);
+  } catch {
+    return null;
+  }
+}
+
 let accessToken: string | null = null;
-let refreshToken: string | null = null;
+let refreshToken: string | null = loadStoredRefresh();
 
 export const setTokens = (access: string | null, refresh: string | null): void => {
   accessToken = access;
   refreshToken = refresh;
+  try {
+    if (refresh) localStorage.setItem(RT_KEY, refresh);
+    else localStorage.removeItem(RT_KEY);
+  } catch {
+    /* trình duyệt riêng tư / chặn storage — bỏ qua, chỉ mất tính năng ghi nhớ */
+  }
 };
+
+/** Có refresh token đã lưu để thử khôi phục phiên khi mở app không. */
+export const hasStoredSession = (): boolean => !!refreshToken;
 export const setAccessToken = (token: string | null): void => {
   accessToken = token;
 };

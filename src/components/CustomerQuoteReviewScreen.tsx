@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { ASSETS, DEFAULT_MECHANIC } from '../data';
 import { Quote } from '../api/orders';
 import { formatVND } from '../domain/money';
+import { ServerMessage } from './ServerMessage';
+import { QuoteBreakdown } from './QuoteBreakdown';
+import { confirmDialog } from './notify';
 
 interface CustomerQuoteReviewProps {
   /** Duyệt/từ chối trên backend; ném lỗi nếu thất bại. */
@@ -13,13 +16,6 @@ interface CustomerQuoteReviewProps {
   mechanicName?: string | null;
 }
 
-const ITEM_TYPE_LABEL: Record<string, string> = {
-  LABOR: 'Tiền công',
-  PART: 'Linh kiện / vật tư',
-  SURCHARGE: 'Phụ phí',
-  DISCOUNT: 'Giảm giá',
-  SUPPORT: 'Hỗ trợ (dắt / kéo / gửi xe)',
-};
 
 export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
   onAccept,
@@ -136,54 +132,7 @@ export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
         </div>
 
         {quote ? (
-          <div className="space-y-3 font-body-sm text-body-sm">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-start gap-2 min-w-0">
-                <span className="w-5 h-5 rounded-full bg-surface-container text-secondary flex items-center justify-center font-label-sm text-[11px] flex-shrink-0 mt-0.5 font-bold">
-                  0
-                </span>
-                <div>
-                  <p className="text-on-surface font-medium leading-snug">Phí gọi thợ (đã xác nhận)</p>
-                  <p className="font-label-sm text-[11px] text-secondary">Điều phối &amp; di chuyển tận nơi</p>
-                </div>
-              </div>
-              <span className="font-label-md text-label-md text-on-surface tabular-nums whitespace-nowrap font-bold">
-                {formatVND(quote.callOutFeeAmount)}
-              </span>
-            </div>
-            {quote.items.map((it) => {
-              const discount = it.itemType === 'DISCOUNT';
-              return (
-                <div
-                  key={it.id}
-                  className={`flex items-center justify-between gap-2 ${
-                    discount ? 'p-2.5 rounded-lg bg-surface-container-low border border-surface-container' : ''
-                  }`}
-                >
-                  <div className="flex items-start gap-2 min-w-0">
-                    <span className="w-5 h-5 rounded-full bg-surface-container text-secondary flex items-center justify-center font-label-sm text-[11px] flex-shrink-0 mt-0.5 font-bold">
-                      {it.lineNo}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-on-surface font-medium leading-snug">{it.description}</p>
-                      <p className="font-label-sm text-[11px] text-secondary">
-                        {ITEM_TYPE_LABEL[it.itemType] ?? it.itemType}
-                        {it.quantity !== 1 ? ` · ${it.quantity} × ${formatVND(it.unitPrice)}` : ''}
-                      </p>
-                    </div>
-                  </div>
-                  <span
-                    className={`font-label-md text-label-md tabular-nums whitespace-nowrap font-bold ${
-                      discount ? 'text-tertiary' : 'text-on-surface'
-                    }`}
-                  >
-                    {discount ? '-' : ''}
-                    {formatVND(it.lineAmount)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          <QuoteBreakdown quote={quote} />
         ) : (
         <div className="space-y-3 font-body-sm text-body-sm">
           {/* Item 1 */}
@@ -317,21 +266,16 @@ export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
 
       {/* Interactive Action Confirmation Deck */}
       <div className="pt-space-xs space-y-space-sm">
-        {error && (
-          <div role="alert" className="rounded-xl bg-error-container text-on-error-container font-body-sm px-[15px] py-2 flex items-center gap-2">
-            <span className="material-symbols-outlined text-[18px]">error</span>
-            <span>{error}</span>
-          </div>
-        )}
+        {error && <ServerMessage variant="error">{error}</ServerMessage>}
         <div className="flex items-center gap-space-sm w-full">
           {/* Decline Secondary Button (32%) */}
           <button
-            onClick={() => {
-              if (
-                window.confirm(
-                  `Bạn muốn từ chối báo giá này? Bạn sẽ chỉ thanh toán ${formatVND(callOutFee)} chi phí kiểm tra và di chuyển cho thợ.`
-                )
-              ) {
+            onClick={async () => {
+              const ok = await confirmDialog(
+                `Bạn muốn từ chối báo giá này? Bạn sẽ chỉ thanh toán ${formatVND(callOutFee)} chi phí kiểm tra và di chuyển cho thợ.`,
+                { okText: 'Từ chối', cancelText: 'Giữ lại', danger: true }
+              );
+              if (ok) {
                 Promise.resolve(onDecline()).catch((e: unknown) =>
                   setError(e instanceof Error ? e.message : 'Không từ chối được báo giá.')
                 );

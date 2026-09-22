@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ASSETS } from '../data';
 import { Offer, PartnerProfile, PartnerStats } from '../api/partner';
+import { ServerMessage } from './ServerMessage';
+import { toast } from './notify';
 import { formatVND } from '../domain/money';
 import { ORDER_STATUS_LABEL } from '../domain/status';
 
@@ -160,10 +162,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
       {/* Main Content */}
       <main className="flex flex-col relative w-full pt-20 px-gutter gap-space-md mt-2">
         {(live?.error || liveError) && (
-          <div role="alert" className="rounded-xl bg-error-container text-on-error-container font-body-sm px-[15px] py-2 flex items-center gap-2">
-            <span className="material-symbols-outlined text-[18px]">error</span>
-            <span>{live?.error || liveError}</span>
-          </div>
+          <ServerMessage variant="error">{live?.error || liveError}</ServerMessage>
         )}
         {live && live.jobs.length > 0 && (
           <section className="bg-surface-container-lowest rounded-xl p-[15px] shadow-sm border border-tertiary/30 flex flex-col gap-2">
@@ -568,7 +567,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
           </button>
 
           <button
-            onClick={() => alert('Thu nhập hôm nay: 480.000 ₫ • Tháng này: 12.450.000 ₫')}
+            onClick={() => toast('Thu nhập hôm nay: 480.000 ₫ • Tháng này: 12.450.000 ₫', 'info')}
             className="flex flex-col items-center justify-center gap-0.5 min-w-[56px] min-h-[44px] text-secondary hover:text-on-surface transition-colors active:scale-95"
             type="button"
           >
@@ -577,7 +576,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
           </button>
 
           <button
-            onClick={() => alert('Đánh giá 4.9 sao • 52 đánh giá tích cực trong tháng')}
+            onClick={() => toast('Đánh giá 4.9 sao • 52 đánh giá tích cực trong tháng', 'info')}
             className="flex flex-col items-center justify-center gap-0.5 min-w-[56px] min-h-[44px] text-secondary hover:text-on-surface transition-colors active:scale-95"
             type="button"
           >

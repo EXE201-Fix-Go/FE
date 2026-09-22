@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { ASSETS, DEFAULT_MECHANIC } from '../data';
+import { MapView, MapMarker } from './MapView';
+import { confirmDialog } from './notify';
 
 interface CustomerTrackingProps {
   /** Demo: bấm để giả lập thợ tới nơi. Khi nối backend, App tự chuyển màn theo trạng thái. */
@@ -13,6 +15,10 @@ interface CustomerTrackingProps {
     mechanicName?: string | null;
     mechanicPhone?: string | null;
     address: string;
+    customerLat?: number;
+    customerLng?: number;
+    partnerLat?: number | null;
+    partnerLng?: number | null;
   };
 }
 
@@ -31,6 +37,15 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
   const mechanicName = live?.mechanicName || DEFAULT_MECHANIC.name;
   const mechanicPhone = live?.mechanicPhone || DEFAULT_MECHANIC.phone;
   const arrived = live ? live.status !== 'ASSIGNED' : false;
+
+  // Ghim thật trên bản đồ: khách + thợ (nếu backend đã có toạ độ).
+  const mapCenter =
+    live?.customerLat != null && live?.customerLng != null ? { lat: live.customerLat, lng: live.customerLng } : null;
+  const mapMarkers: MapMarker[] = [];
+  if (live?.customerLat != null && live?.customerLng != null)
+    mapMarkers.push({ lat: live.customerLat, lng: live.customerLng, label: 'Vị trí của bạn', tone: 'primary' });
+  if (live?.partnerLat != null && live?.partnerLng != null)
+    mapMarkers.push({ lat: live.partnerLat, lng: live.partnerLng, label: `${mechanicName} (thợ)`, tone: 'tertiary' });
   // Bước hiện tại trên thanh tiến trình theo trạng thái thật (§7.1)
   const stepIndex = !live
     ? 1
@@ -77,54 +92,18 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
     <div className="flex flex-col w-full relative min-h-screen pb-safe">
       {/* Live Tracking Map Section (Top ~42%) */}
       <div className="relative w-full h-[340px] overflow-hidden bg-surface-container">
-        {/* Map Canvas Viewport */}
-        <div
-          className="w-full h-full bg-cover bg-center transition-transform duration-700"
-          style={{ backgroundImage: `url('${ASSETS.mapTrackingLive}')` }}
-        />
-        {/* Live Ambient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/30 pointer-events-none"></div>
-
-        {/* Simulated Active Route SVG Overlay */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" fill="none" viewBox="0 0 390 340">
-          <path
-            d="M 85 240 C 130 220, 180 180, 225 155 S 290 115, 305 75"
-            stroke="#000000"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeOpacity="0.15"
-            strokeWidth="8"
+        {/* Map Canvas Viewport — bản đồ Leaflet thật (khách + thợ) */}
+        {mapCenter ? (
+          <MapView center={mapCenter} zoom={14} markers={mapMarkers} className="w-full h-full" />
+        ) : (
+          <div
+            className="w-full h-full bg-cover bg-center transition-transform duration-700"
+            style={{ backgroundImage: `url('${ASSETS.mapTrackingLive}')` }}
           />
-          <path
-            d="M 85 240 C 130 220, 180 180, 225 155 S 290 115, 305 75"
-            id="route-path"
-            stroke="#cc4900"
-            strokeDasharray="8 6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="5"
-          />
-          {/* User Position Landmark */}
-          <g transform="translate(85, 240)">
-            <circle className="animate-ping" cx="0" cy="0" fill="#cc4900" fillOpacity="0.2" r="16" />
-            <circle cx="0" cy="0" fill="#a33900" r="9" />
-            <circle cx="0" cy="0" fill="#ffffff" r="4" />
-          </g>
-        </svg>
-
-        {/* Moving Mechanic Marker along route */}
-        <div className="absolute top-[88px] right-[76px] flex flex-col items-center animate-bounce duration-1000">
-          <div className="bg-primary text-on-primary px-space-xs py-0.5 rounded-full shadow-lg flex items-center gap-1 mb-1">
-            <span className="material-symbols-outlined text-[14px]">two_wheeler</span>
-            <span className="font-label-sm text-[10px] leading-tight">Tuấn đang tới</span>
-          </div>
-          <div className="w-10 h-10 rounded-full bg-on-surface text-primary-fixed flex items-center justify-center shadow-xl">
-            <span className="material-symbols-outlined text-[24px]">motorcycle</span>
-          </div>
-        </div>
+        )}
 
         {/* Floating Top ETA Pill Card */}
-        <div className="absolute top-4 inset-x-margin px-4 flex items-center justify-between pointer-events-auto">
+        <div className="absolute top-4 inset-x-margin px-4 flex items-center justify-between z-[500]">
           <div className="bg-surface-container-lowest/95 backdrop-blur-md px-space-md py-space-xs rounded-full shadow-lg flex items-center gap-space-sm border border-surface-container">
             <span className="relative flex h-3 w-3">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-tertiary opacity-75"></span>
@@ -150,7 +129,7 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
         </div>
 
         {/* User Pin Address Tag overlay */}
-        <div className="absolute bottom-6 left-4 bg-surface-container-lowest/90 backdrop-blur-sm px-space-sm py-1 rounded-lg shadow-sm flex items-center gap-1">
+        <div className="absolute bottom-6 left-4 bg-surface-container-lowest/90 backdrop-blur-sm px-space-sm py-1 rounded-lg shadow-sm flex items-center gap-1 z-[500]">
           <span className="material-symbols-outlined text-primary text-[16px]">location_on</span>
           <span className="font-label-sm text-[12px] text-on-surface truncate max-w-[210px] font-medium">
             {live ? live.address : '242 Cống Quỳnh, Q.1'}
@@ -380,14 +359,12 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
         {/* Emergency Secondary Row / Cancel Support Link */}
         <div className="flex items-center justify-between pt-1 text-center">
           <button
-            onClick={() => {
-              if (
-                window.confirm(
-                  `Thợ ${mechanicName} đang trên đường tới. Bạn có chắc muốn hủy chuyến cứu hộ này?`
-                )
-              ) {
-                onCancel();
-              }
+            onClick={async () => {
+              const ok = await confirmDialog(
+                `Thợ ${mechanicName} đang trên đường tới. Bạn có chắc muốn hủy chuyến cứu hộ này?`,
+                { okText: 'Hủy chuyến', cancelText: 'Giữ lại', danger: true }
+              );
+              if (ok) onCancel();
             }}
             className="font-body-sm text-[13px] text-secondary hover:text-error transition-colors px-2 py-1"
             type="button"

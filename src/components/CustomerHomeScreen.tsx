@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { ASSETS, SERVICES } from '../data';
 import { ServiceItem } from '../types';
+import { Coords } from '../domain/geo';
+import { MapView } from './MapView';
+
+type LocationStatus = 'idle' | 'locating' | 'ready' | 'denied' | 'unsupported';
 
 interface CustomerHomeScreenProps {
   onSelectService: (service: ServiceItem) => void;
@@ -9,6 +13,9 @@ interface CustomerHomeScreenProps {
   currentAddress: string;
   onAddressChange?: (address: string) => void;
   onUpdateAddress?: () => void;
+  coords?: Coords | null;
+  locationStatus?: LocationStatus;
+  onLocate?: () => void;
 }
 
 export const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = ({
@@ -18,6 +25,9 @@ export const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = ({
   currentAddress,
   onAddressChange,
   onUpdateAddress,
+  coords,
+  locationStatus = 'idle',
+  onLocate,
 }) => {
   const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [addressInput, setAddressInput] = useState(currentAddress);
@@ -66,15 +76,30 @@ export const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = ({
               <span className="font-label-md text-label-md text-on-surface font-bold truncate">
                 {currentAddress}
               </span>
+              <LocationStatusLine status={locationStatus} coords={coords} />
             </div>
           </div>
-          <button
-            onClick={() => setIsEditingAddress(true)}
-            className="px-space-sm py-1.5 rounded-lg bg-surface-container text-primary font-label-sm text-label-sm font-bold flex-shrink-0 active:scale-95 hover:bg-surface-container-high transition-all"
-            type="button"
-          >
-            Đổi
-          </button>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {onLocate && (
+              <button
+                onClick={onLocate}
+                aria-label="Định vị lại"
+                className="w-9 h-9 rounded-lg bg-surface-container text-primary flex items-center justify-center active:scale-95 hover:bg-surface-container-high transition-all"
+                type="button"
+              >
+                <span className={`material-symbols-outlined text-[20px] ${locationStatus === 'locating' ? 'animate-spin' : ''}`}>
+                  {locationStatus === 'locating' ? 'progress_activity' : 'my_location'}
+                </span>
+              </button>
+            )}
+            <button
+              onClick={() => setIsEditingAddress(true)}
+              className="px-space-sm py-1.5 rounded-lg bg-surface-container text-primary font-label-sm text-label-sm font-bold active:scale-95 hover:bg-surface-container-high transition-all"
+              type="button"
+            >
+              Đổi
+            </button>
+          </div>
         </div>
 
         {/* Modal for editing address */}
@@ -121,13 +146,14 @@ export const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = ({
           </div>
         )}
 
-        {/* Live Rescue Dispatch Map Snapshot Card */}
-        <div className="relative w-full rounded-xl overflow-hidden shadow-sm bg-surface-container-low">
-          <div
-            className="w-full h-28 bg-cover bg-center"
-            style={{ backgroundImage: `url('${ASSETS.mapSnapshotHome}')` }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-inverse-surface/90 via-inverse-surface/40 to-transparent flex items-end p-space-sm">
+        {/* Live Rescue Dispatch Map Card — bản đồ Leaflet ghim vị trí GPS */}
+        <div className="relative w-full rounded-xl overflow-hidden shadow-sm bg-surface-container-low h-28">
+          {coords ? (
+            <MapView center={{ lat: coords.lat, lng: coords.lng }} zoom={15} accuracy={coords.accuracy} className="w-full h-full" />
+          ) : (
+            <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url('${ASSETS.mapSnapshotHome}')` }} />
+          )}
+          <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-inverse-surface/90 via-inverse-surface/30 to-transparent flex items-end p-space-sm z-[500]">
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-space-xs text-inverse-on-surface">
                 <span className="material-symbols-outlined text-tertiary-fixed-dim text-[18px]">electric_moped</span>
@@ -210,5 +236,27 @@ export const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = ({
 
       </div>
     </div>
+  );
+};
+
+/** Dòng nhỏ dưới địa chỉ: trạng thái định vị GPS + sai số. */
+const LocationStatusLine: React.FC<{ status: LocationStatus; coords?: Coords | null }> = ({ status, coords }) => {
+  const meta: Record<LocationStatus, { icon: string; text: string; tone: string }> = {
+    idle: { icon: 'my_location', text: 'Chưa định vị', tone: 'text-secondary' },
+    locating: { icon: 'progress_activity', text: 'Đang định vị…', tone: 'text-secondary' },
+    ready: {
+      icon: 'gps_fixed',
+      text: coords ? `Đã định vị GPS · ±${Math.round(coords.accuracy)}m` : 'Đã định vị GPS',
+      tone: 'text-tertiary',
+    },
+    denied: { icon: 'location_off', text: 'Chưa bật vị trí — đang dùng vị trí mẫu', tone: 'text-error' },
+    unsupported: { icon: 'location_disabled', text: 'Máy không hỗ trợ định vị — dùng vị trí mẫu', tone: 'text-error' },
+  };
+  const m = meta[status];
+  return (
+    <span className={`font-label-sm text-[11px] flex items-center gap-1 mt-0.5 ${m.tone}`}>
+      <span className={`material-symbols-outlined text-[13px] ${status === 'locating' ? 'animate-spin' : ''}`}>{m.icon}</span>
+      {m.text}
+    </span>
   );
 };

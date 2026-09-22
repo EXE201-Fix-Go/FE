@@ -8,6 +8,7 @@ import { CustomerTrackingScreen } from './components/CustomerTrackingScreen';
 import { CustomerQuoteReviewScreen } from './components/CustomerQuoteReviewScreen';
 import { CustomerCompletedScreen } from './components/CustomerCompletedScreen';
 import { CustomerHistoryScreen } from './components/CustomerHistoryScreen';
+import { CustomerOrderDetailScreen } from './components/CustomerOrderDetailScreen';
 import { CustomerProfileScreen } from './components/CustomerProfileScreen';
 import { MechanicDashboardScreen } from './components/MechanicDashboardScreen';
 import { MechanicNavigationScreen } from './components/MechanicNavigationScreen';
@@ -17,10 +18,11 @@ import { AuthOtpScreen } from './components/AuthOtpScreen';
 import { AuthRoleSelectScreen } from './components/AuthRoleSelectScreen';
 import { PartnerRegisterScreen } from './components/PartnerRegisterScreen';
 import { ShopOwnerScreen } from './components/ShopOwnerScreen';
+import { NotificationHost, toast } from './components/notify';
 import { SERVICES } from './data';
 import { EntryDestination, ScreenId, ServiceItem, UserRole } from './types';
-import { requestOtp, verifyOtp, logout, AppRole, AuthUser } from './api/auth';
-import { ApiError, apiConfigured, setOnUnauthorized } from './api/client';
+import { requestOtp, verifyOtp, logout, me, AppRole, AuthUser } from './api/auth';
+import { ApiError, apiConfigured, setOnUnauthorized, setTokens, hasStoredSession } from './api/client';
 import {
   Order, createOrder, confirmOrder, getOrder, getOrderStatus, cancelOrder, approveQuote, declineQuote, submitReview,
 } from './api/orders';
@@ -31,10 +33,12 @@ import {
 import { ORDER_STATUS_LABEL, isTerminal } from './domain/status';
 import { uploadPhoto } from './api/uploads';
 import { getPartnerDashboard } from './api/partner';
+import { Coords, getCurrentPosition, GeoError, PILOT_FALLBACK, reverseGeocode } from './domain/geo';
 
 type AuthStep = 'phone' | 'otp' | 'role';
+export type LocationStatus = 'idle' | 'locating' | 'ready' | 'denied' | 'unsupported';
 
-/** Làng Đại học, Thủ Đức — khu vực pilot (BRD). Prototype chưa dùng GPS thật. */
+/** Làng Đại học, Thủ Đức — khu vực pilot (BRD). Dùng khi chưa/không lấy được GPS thật. */
 const PILOT_LOCATION = { lat: 10.87, lng: 106.803 };
 const POLL_MS = 4000;
 const DASHBOARD_POLL_MS = 3000;
@@ -90,6 +94,35 @@ export default function App() {
   const [selectedService, setSelectedService] = useState<ServiceItem>(SERVICES[0]);
   const [currentAddress, setCurrentAddress] = useState<string>('Cổng KTX khu B, Làng Đại học, Thủ Đức');
 
+  // ── Vị trí GPS thật ───────────────────────────────────────────────
+  const [coords, setCoords] = useState<Coords | null>(null);
+  const [locationStatus, setLocationStatus] = useState<LocationStatus>('idle');
+  /** Lấy vị trí; trả về toạ độ dùng được + cờ `real` (true nếu là GPS thật, false nếu fallback pilot). */
+  const locate = useCallback(async (): Promise<{ coords: Coords; real: boolean }> => {
+    setLocationStatus('locating');
+    try {
+      const c = await getCurrentPosition();
+      setCoords(c);
+      setLocationStatus('ready');
+      return { coords: c, real: true };
+    } catch (e) {
+      setLocationStatus(e instanceof GeoError && e.kind === 'unsupported' ? 'unsupported' : 'denied');
+      return { coords: PILOT_FALLBACK, real: false };
+    }
+  }, []);
+  /** Định vị + đổi tên "Vị trí hiện tại" theo GPS thật (reverse geocode). Dùng cho luồng khách. */
+  const locateAndName = useCallback(async () => {
+    const { coords: c, real } = await locate();
+    if (!real) return; // bị từ chối → giữ địa chỉ hiện tại, không đặt tên theo vị trí mẫu
+    const name = await reverseGeocode(c.lat, c.lng);
+    if (name) setCurrentAddress(name);
+  }, [locate]);
+  const [detailOrder, setDetailOrder] = useState<Order | null>(null);
+  // Khách vào trang chủ lần đầu: xin quyền và lấy vị trí ngay để đặt đơn đúng chỗ.
+  useEffect(() => {
+    if (activeScreen === 'customer_home' && locationStatus === 'idle') void locateAndName();
+  }, [activeScreen, locationStatus, locateAndName]);
+
   // ── Trạng thái đăng nhập ──────────────────────────────────────────
   const [authed, setAuthed] = useState<boolean>(!!startScreen);
   const [authStep, setAuthStep] = useState<AuthStep>('role');
@@ -99,6 +132,47 @@ export default function App() {
   const [role, setRole] = useState<UserRole>(initialRole);
   const [pendingDest, setPendingDest] = useState<EntryDestination>('customer');
   const live = !startScreen && apiConfigured; // deep-link hoặc build không có backend = chế độ demo
+
+  // ── Ghi nhớ đăng nhập: khôi phục phiên từ refresh token đã lưu ─────
+  const [restoring, setRestoring] = useState<boolean>(() => live && hasStoredSession());
+  useEffect(() => {
+    if (!live || authed || !hasStoredSession()) {
+      setRestoring(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const u = await me(); // client tự refresh access token bằng refresh token đã lưu
+        if (cancelled) return;
+        setUser(u);
+        setAuthed(true);
+        switch (u.appRole) {
+          case 'P_IND':
+          case 'P_STAFF':
+            setRole('mechanic');
+            setActiveScreen('mechanic_dashboard');
+            break;
+          case 'P_SHOP':
+            setRole('mechanic');
+            setActiveScreen('shop_owner');
+            break;
+          default: // CUSTOMER / ADMIN
+            setRole('customer');
+            setActiveScreen('customer_home');
+            break;
+        }
+      } catch {
+        setTokens(null, null); // refresh token hỏng/hết hạn → xoá, yêu cầu đăng nhập lại
+      } finally {
+        if (!cancelled) setRestoring(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // chỉ chạy 1 lần lúc mở app
 
   // ── Khách: đơn đang theo dõi ──────────────────────────────────────
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
@@ -128,7 +202,7 @@ export default function App() {
   useEffect(() => {
     setOnUnauthorized(() => {
       resetAll();
-      alert('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.');
+      toast('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.', 'info');
     });
   }, [resetAll]);
 
@@ -174,18 +248,18 @@ export default function App() {
       case 'P_SHOP':
         setRole('mechanic');
         setActiveScreen(pendingDest === 'customer' ? 'shop_owner' : pendingDest === 'shop' ? 'shop_owner' : 'mechanic_dashboard');
-        if (pendingDest === 'customer') alert('Số này là tài khoản chủ tiệm — đã chuyển sang app Đối tác.');
+        if (pendingDest === 'customer') toast('Số này là tài khoản chủ tiệm — đã chuyển sang app Đối tác.', 'info');
         break;
       case 'P_IND':
       case 'P_STAFF':
         setRole('mechanic');
         setActiveScreen('mechanic_dashboard');
-        if (pendingDest === 'customer') alert('Số này là tài khoản thợ — đã chuyển sang app Đối tác.');
+        if (pendingDest === 'customer') toast('Số này là tài khoản thợ — đã chuyển sang app Đối tác.', 'info');
         break;
       case 'ADMIN':
         setRole('customer');
         setActiveScreen('customer_home');
-        alert('Tài khoản ADMIN: prototype chưa có màn quản trị, dùng docs/order-flow.http để duyệt KYC.');
+        toast('Tài khoản ADMIN: prototype chưa có màn quản trị, dùng docs/order-flow.http để duyệt KYC.', 'info');
         break;
     }
   };
@@ -212,6 +286,7 @@ export default function App() {
     if (!live || !currentOrder || !CUSTOMER_WATCH_SCREENS.includes(activeScreen)) return;
     let inFlight = false;
     const id = setInterval(async () => {
+      if (document.hidden) return; // tab bị ẩn → ngừng bắn request (tiết kiệm mạng/pin)
       if (inFlight) return; // không xếp chồng request khi mạng chậm
       inFlight = true;
       try {
@@ -222,10 +297,11 @@ export default function App() {
         if (target === null) {
           if (lastNotified.current !== o.id) {
             lastNotified.current = o.id;
-            alert(
+            toast(
               o.status === 'NO_PARTNER_FOUND'
                 ? 'Rất tiếc, hiện chưa có thợ nào gần bạn nhận đơn. Vui lòng thử lại sau.'
-                : `Đơn ${o.orderCode}: ${ORDER_STATUS_LABEL[o.status]}.`
+                : `Đơn ${o.orderCode}: ${ORDER_STATUS_LABEL[o.status]}.`,
+              'info'
             );
           }
           setActiveScreen('customer_home');
@@ -250,12 +326,26 @@ export default function App() {
       addressText: currentAddress,
       note,
       photoUrls,
-      lat: PILOT_LOCATION.lat,
-      lng: PILOT_LOCATION.lng,
+      lat: coords?.lat ?? PILOT_LOCATION.lat,
+      lng: coords?.lng ?? PILOT_LOCATION.lng,
     });
     const confirmed = await confirmOrder(created.id); // BR01: xác nhận phí gọi thợ → điều phối
     setCurrentOrder(confirmed);
-    setActiveScreen(customerScreenFor(confirmed) ?? 'customer_home');
+    const target = customerScreenFor(confirmed);
+    if (target) {
+      setActiveScreen(target);
+    } else {
+      // Điều phối kết thúc ngay (thường NO_PARTNER_FOUND khi không có thợ trong bán kính vị trí GPS).
+      // Trước đây về home lặng lẽ → trông như "không đặt được đơn". Nay báo rõ.
+      lastNotified.current = confirmed.id;
+      setActiveScreen('customer_home');
+      toast(
+        confirmed.status === 'NO_PARTNER_FOUND'
+          ? 'Chưa có thợ nào gần vị trí của bạn nhận đơn. Khu vực thí điểm hiện quanh Làng ĐH Thủ Đức — hãy thử lại sau, hoặc kiểm tra lại vị trí.'
+          : `Đơn ${confirmed.orderCode}: ${ORDER_STATUS_LABEL[confirmed.status]}.`,
+        'info'
+      );
+    }
   };
 
   const cancelCurrent = async (reason: string) => {
@@ -264,7 +354,7 @@ export default function App() {
       const o = await cancelOrder(currentOrder.id, reason);
       setCurrentOrder(o);
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Không hủy được đơn.');
+      toast(e instanceof Error ? e.message : 'Không hủy được đơn.', 'error');
     }
     setActiveScreen('customer_home');
   };
@@ -272,6 +362,19 @@ export default function App() {
   const openOrder = (o: Order) => {
     setCurrentOrder(o);
     setActiveScreen(customerScreenFor(o) ?? 'customer_history');
+  };
+
+  /** Mở màn chi tiết cho một đơn trong lịch sử. Lấy bản mới nhất (đủ history) nếu có backend. */
+  const openOrderDetail = async (o: Order) => {
+    setDetailOrder(o);
+    setActiveScreen('customer_order_detail');
+    if (apiConfigured) {
+      try {
+        setDetailOrder(await getOrder(o.id));
+      } catch {
+        /* giữ bản đã có trong danh sách */
+      }
+    }
   };
 
   // ── Thợ: hồ sơ + poll lời mời/đơn khi ở dashboard ─────────────────
@@ -303,21 +406,29 @@ export default function App() {
     let cancelled = false;
     partnerInFlight.current = false;   // vừa quay về dashboard: làm mới ngay, không chờ request cũ
     (async () => {
-      // Lần đầu vào: nếu đã duyệt mà đang OFFLINE thì bật ONLINE tại vị trí pilot cho tiện demo.
+      // Lần đầu vào: nếu đã duyệt mà đang OFFLINE thì bật ONLINE tại vị trí GPS thật (fallback pilot).
       try {
         const p = await getPartnerMe();
         if (!cancelled && p.verificationStatus === 'APPROVED' && p.availability === 'OFFLINE') {
-          await updatePresence('ONLINE', PILOT_LOCATION.lat + 0.004, PILOT_LOCATION.lng);
+          await updatePresence('ONLINE'); // giữ vị trí đã đăng ký (không ép GPS thiết bị người test)
         }
       } catch {
         /* báo ở refreshPartner */
       }
       if (!cancelled) refreshPartner();
     })();
-    const id = setInterval(refreshPartner, DASHBOARD_POLL_MS);
+    const id = setInterval(() => {
+      if (!document.hidden) refreshPartner(); // ẩn tab → ngừng poll dashboard
+    }, DASHBOARD_POLL_MS);
+    // Quay lại tab → làm mới ngay, không đợi hết chu kỳ.
+    const onVisible = () => {
+      if (!document.hidden) refreshPartner();
+    };
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       cancelled = true;
       clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [live, activeScreen, refreshPartner]);
 
@@ -337,6 +448,7 @@ export default function App() {
     if (!live || !activeOrder || activeScreen !== 'mechanic_quote_create') return;
     let inFlight = false;
     const id = setInterval(async () => {
+      if (document.hidden) return; // tab ẩn → ngừng poll báo giá
       if (inFlight) return;
       inFlight = true;
       try {
@@ -344,7 +456,7 @@ export default function App() {
         const o = await getOrder(activeOrder.id);
         setActiveOrder(o);
         if (isTerminal(o.status)) {
-          alert(`Đơn ${o.orderCode}: ${ORDER_STATUS_LABEL[o.status]}.`);
+          toast(`Đơn ${o.orderCode}: ${ORDER_STATUS_LABEL[o.status]}.`, 'info');
           setActiveOrder(null);
           setActiveScreen('mechanic_dashboard');
         }
@@ -356,6 +468,16 @@ export default function App() {
     }, POLL_MS);
     return () => clearInterval(id);
   }, [live, activeOrder?.id, activeOrder?.status, activeScreen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Đang khôi phục phiên đã ghi nhớ → splash nhẹ, tránh nháy màn đăng nhập.
+  if (restoring) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen w-full bg-surface gap-3">
+        <span className="material-symbols-outlined text-[40px] text-primary animate-spin">progress_activity</span>
+        <p className="font-label-md text-on-surface-variant">Đang khôi phục phiên đăng nhập…</p>
+      </div>
+    );
+  }
 
   // ── Luồng: Chọn vai trò → SĐT → OTP → vào đúng app ───────────────
   if (!authed) {
@@ -378,6 +500,7 @@ export default function App() {
             }}
           />
         )}
+        <NotificationHost />
       </div>
     );
   }
@@ -397,6 +520,8 @@ export default function App() {
         return 'Hóa Đơn & Đánh Giá';
       case 'customer_history':
         return 'Lịch Sử Cứu Hộ';
+      case 'customer_order_detail':
+        return 'Chi Tiết Đơn';
       case 'customer_profile':
         return 'Tài Khoản & Xe';
       default:
@@ -418,6 +543,10 @@ export default function App() {
           mechanicName: currentOrder.partner?.fullName,
           mechanicPhone: currentOrder.partner?.phone,
           address: currentOrder.addressText,
+          customerLat: currentOrder.lat,
+          customerLng: currentOrder.lng,
+          partnerLat: currentOrder.partner?.lat ?? null,
+          partnerLng: currentOrder.partner?.lng ?? null,
         }
       : undefined;
 
@@ -454,6 +583,9 @@ export default function App() {
               const newAddr = prompt('Nhập địa chỉ gặp sự cố mới:', currentAddress);
               if (newAddr) setCurrentAddress(newAddr);
             }}
+            coords={coords}
+            locationStatus={locationStatus}
+            onLocate={() => void locateAndName()}
           />
         )}
 
@@ -461,6 +593,10 @@ export default function App() {
           <CustomerConfirmRequestScreen
             selectedService={selectedService}
             currentAddress={currentAddress}
+            gpsAccuracy={locationStatus === 'ready' ? coords?.accuracy ?? null : null}
+            coords={locationStatus === 'ready' ? coords : null}
+            onLocate={() => void locateAndName()}
+            isLocating={locationStatus === 'locating'}
             onBack={() => setActiveScreen('customer_home')}
             onConfirmDispatch={
               live
@@ -540,11 +676,19 @@ export default function App() {
         {activeScreen === 'customer_history' && (
           <CustomerHistoryScreen
             onBackToHome={() => setActiveScreen('customer_home')}
+            onOpen={openOrderDetail}
+          />
+        )}
+
+        {activeScreen === 'customer_order_detail' && detailOrder && (
+          <CustomerOrderDetailScreen
+            order={detailOrder}
+            onBack={() => setActiveScreen('customer_history')}
+            onResume={openOrder}
             onViewInvoice={(o) => {
               setCurrentOrder(o);
               setActiveScreen('customer_completed');
             }}
-            onResume={openOrder}
           />
         )}
 
@@ -566,6 +710,8 @@ export default function App() {
                     jobs,
                     error: partnerError,
                     onAccept: async (assignmentId) => {
+                      // Mốc tính phí di chuyển = vị trí ĐĂNG KÝ hiện tại của thợ (partner_profiles.current_lat/lng),
+                      // KHÔNG ghi đè bằng GPS thiết bị người test — nhờ vậy km luôn tính đúng dù test 1 máy.
                       const accepted = await acceptOffer(assignmentId);
                       setOffers([]);
                       await openJob(accepted);
@@ -574,11 +720,10 @@ export default function App() {
                       await declineOffer(assignmentId, 'Đang bận');
                       refreshPartner();
                     },
-                    onOpenJob: (job) => openJob(job).catch((e: unknown) => alert(e instanceof Error ? e.message : 'Lỗi')),
+                    onOpenJob: (job) => openJob(job).catch((e: unknown) => toast(e instanceof Error ? e.message : 'Lỗi', 'error')),
                     onToggleReady: async (ready) => {
-                      setProfile(
-                        await updatePresence(ready ? 'ONLINE' : 'OFFLINE', PILOT_LOCATION.lat + 0.004, PILOT_LOCATION.lng)
-                      );
+                      // Chỉ bật/tắt trực tuyến; giữ nguyên vị trí đăng ký của thợ.
+                      setProfile(await updatePresence(ready ? 'ONLINE' : 'OFFLINE'));
                     },
                   }
                 : undefined
@@ -606,7 +751,7 @@ export default function App() {
                   await arriveAtOrder(activeOrder.id);
                   setActiveOrder(await startChecking(activeOrder.id));
                 } catch (e: unknown) {
-                  alert(e instanceof Error ? e.message : 'Không cập nhật được.');
+                  toast(e instanceof Error ? e.message : 'Không cập nhật được.', 'error');
                   return;
                 }
               }
@@ -627,6 +772,8 @@ export default function App() {
                     contactPhone: activeOrder.contactPhone,
                     approvedTotal: activeOrder.quote?.status === 'APPROVED' ? activeOrder.quote.totalAmount : null,
                     callOutFee: activeOrder.callOutFee,
+                    travelDistanceKm: activeOrder.travelDistanceKm ?? null,
+                    travelFee: activeOrder.travelFee ?? null,
                     serviceId: activeOrder.serviceId,
                     extraServiceIds: activeOrder.extraServiceIds,
                     quoteRevision: activeOrder.quote?.revisionNo ?? null,
@@ -638,17 +785,17 @@ export default function App() {
                 await sendQuote(activeOrder.id, items);
                 setActiveOrder(await getOrder(activeOrder.id));
               } else {
-                alert('Báo giá đã được gửi đến khách hàng!');
+                toast('Báo giá đã được gửi đến khách hàng!', 'success');
               }
             }}
             onJobFinished={async () => {
               if (live && activeOrder) {
                 const o = await completeOrder(activeOrder.id);
-                alert(`Đã hoàn tất ${o.orderCode}. Đã ghi nhận thu ${o.payment?.amount.toLocaleString('vi-VN')} ₫ tiền mặt từ khách.`);
+                toast(`Đã hoàn tất ${o.orderCode}. Đã ghi nhận thu ${o.payment?.amount.toLocaleString('vi-VN')} ₫ tiền mặt từ khách.`, 'success');
                 setActiveOrder(null);
                 setActiveScreen('mechanic_dashboard');
               } else {
-                alert('Đã hoàn tất sửa chữa và thu 120.000 ₫ thành công!');
+                toast('Đã hoàn tất sửa chữa và thu 120.000 ₫ thành công!', 'success');
                 setActiveScreen('mechanic_dashboard');
               }
             }}
@@ -665,10 +812,10 @@ export default function App() {
               if (live) {
                 const p = await registerPartner(input);
                 setProfile(p);
-                alert('Đã gửi hồ sơ KYC. Fix&Go sẽ duyệt trong vòng 24 giờ — bạn chưa nhận đơn cho tới khi được duyệt.');
+                toast('Đã gửi hồ sơ KYC. Fix&Go sẽ duyệt trong vòng 24 giờ — bạn chưa nhận đơn cho tới khi được duyệt.', 'success');
                 setActiveScreen(p.partnerType === 'SHOP' ? 'shop_owner' : 'mechanic_dashboard');
               } else {
-                alert('Đã gửi hồ sơ KYC. Fix&Go sẽ duyệt trong vòng 24 giờ.');
+                toast('Đã gửi hồ sơ KYC. Fix&Go sẽ duyệt trong vòng 24 giờ.', 'success');
                 setActiveScreen('mechanic_dashboard');
               }
             }}
@@ -681,6 +828,7 @@ export default function App() {
       {showCustomerBottomNav && (
         <CustomerBottomNav currentScreen={activeScreen} onNavigate={(screen) => setActiveScreen(screen)} />
       )}
+      <NotificationHost />
     </div>
   );
 }

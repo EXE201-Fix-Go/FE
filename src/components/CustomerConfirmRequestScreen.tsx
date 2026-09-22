@@ -1,6 +1,10 @@
 import React, { useRef, useState } from 'react';
 import { ASSETS, SERVICES } from '../data';
 import { ServiceItem } from '../types';
+import { ServerMessage } from './ServerMessage';
+import { MapView } from './MapView';
+import { Coords } from '../domain/geo';
+import { toast } from './notify';
 
 const MAX_PHOTOS = 6;
 
@@ -12,6 +16,14 @@ interface CustomerConfirmRequestProps {
   onConfirmDispatch: (note: string, extraServiceIds: string[], photos: File[]) => Promise<void>;
   onChangeService: () => void;
   onEditAddress: () => void;
+  /** Sai số GPS (mét) nếu đã định vị được — hiển thị để khách yên tâm toạ độ gửi đi là thật. */
+  gpsAccuracy?: number | null;
+  /** Định vị lại bằng GPS (cập nhật toạ độ + tên địa chỉ). */
+  onLocate?: () => void;
+  /** Đang lấy vị trí — hiện spinner ở nút định vị. */
+  isLocating?: boolean;
+  /** Toạ độ GPS thật để ghim lên bản đồ (không có → dùng ảnh tĩnh dự phòng). */
+  coords?: Coords | null;
 }
 
 export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps> = ({
@@ -21,6 +33,10 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
   onConfirmDispatch,
   onChangeService,
   onEditAddress,
+  gpsAccuracy,
+  onLocate,
+  isLocating,
+  coords,
 }) => {
   const [note, setNote] = useState('Xe Honda Vision đỏ dựng trước cổng Circle K');
   const [isRotating, setIsRotating] = useState(false);
@@ -48,6 +64,7 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
   const handleRecenter = () => {
     setIsRotating(true);
     setTimeout(() => setIsRotating(false), 400);
+    onLocate?.(); // định vị lại thật (cập nhật toạ độ + tên địa chỉ)
   };
 
   const handleConfirm = async () => {
@@ -63,67 +80,53 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
 
   return (
     <div className="flex flex-col w-full relative min-h-screen pb-safe">
-      {/* Map Canvas Section (Top Mobile Viewport) */}
+      {/* Map Canvas Section (Top Mobile Viewport) — bản đồ Leaflet thật ghim đúng GPS */}
       <div className="relative w-full h-[360px] overflow-hidden bg-surface-container-low select-none">
-        <div
-          className="w-full h-full bg-cover bg-center"
-          style={{ backgroundImage: `url('${ASSETS.mapSnapshotHome}')` }}
-        />
-        {/* Vector Map Grid / Road Ambience Overlay */}
-        <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-surface/40 via-transparent to-surface/20"></div>
+        {coords ? (
+          <MapView
+            center={{ lat: coords.lat, lng: coords.lng }}
+            accuracy={coords.accuracy}
+            markers={[{ lat: coords.lat, lng: coords.lng, label: currentAddress, tone: 'primary' }]}
+            className="w-full h-full"
+          />
+        ) : (
+          <div
+            className="w-full h-full bg-cover bg-center"
+            style={{ backgroundImage: `url('${ASSETS.mapSnapshotHome}')` }}
+          />
+        )}
 
-        {/* Active Street Indicator Tag */}
-        <div className="absolute top-3 left-4 right-4 flex items-center justify-between pointer-events-auto">
-          <div className="flex items-center gap-space-xs bg-surface-container-lowest/95 backdrop-blur-md px-3 py-1.5 rounded-full shadow-md">
-            <span className="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
-            <span className="font-label-sm text-[12px] text-on-surface">
-              Ngã 4 Cống Quỳnh • Nguyễn Trãi (Q1)
-            </span>
+        {/* Nhãn địa chỉ + độ chính xác GPS */}
+        <div className="absolute top-3 left-4 right-4 flex items-center justify-between pointer-events-none z-[500]">
+          <div className="flex items-center gap-space-xs bg-surface-container-lowest/95 backdrop-blur-md px-3 py-1.5 rounded-full shadow-md min-w-0">
+            <span className="w-2 h-2 rounded-full bg-tertiary animate-pulse flex-shrink-0"></span>
+            <span className="font-label-sm text-[12px] text-on-surface truncate max-w-[200px]">{currentAddress}</span>
           </div>
-          <div className="bg-surface-container-lowest/95 backdrop-blur-md px-2.5 py-1.5 rounded-full shadow-md flex items-center gap-1">
-            <span className="material-symbols-outlined text-[16px] text-tertiary">near_me</span>
-            <span className="font-label-sm text-[12px] text-on-surface">Độ chính xác &lt; 5m</span>
-          </div>
-        </div>
-
-        {/* Live Animated Pin Marker (Centered in view) */}
-        <div className="absolute top-[48%] left-1/2 -translate-x-1/2 -translate-y-full flex flex-col items-center pointer-events-none z-20">
-          {/* Tooltip Badge */}
-          <div className="mb-1.5 px-3 py-1 bg-inverse-surface text-inverse-on-surface rounded-full shadow-lg flex items-center gap-1.5 transform transition-transform animate-bounce">
-            <span className="material-symbols-outlined text-[14px] text-primary-fixed">emergency</span>
-            <span className="font-label-sm text-[11px] whitespace-nowrap">Vị trí cứu hộ của bạn</span>
-          </div>
-          {/* Pulse Effect Ring */}
-          <div className="relative flex items-center justify-center">
-            <div className="absolute w-12 h-12 rounded-full bg-primary/25 animate-ping"></div>
-            <div className="absolute w-7 h-7 rounded-full bg-secondary-container/80"></div>
-            {/* Physical Orange Brand Pin */}
-            <div className="relative w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-[0_8px_20px_rgba(163,57,0,0.45)]">
-              <span
-                className="material-symbols-outlined text-[22px]"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                build
-              </span>
+          {gpsAccuracy != null && (
+            <div className="bg-surface-container-lowest/95 backdrop-blur-md px-2.5 py-1.5 rounded-full shadow-md flex items-center gap-1 flex-shrink-0">
+              <span className="material-symbols-outlined text-[16px] text-tertiary">near_me</span>
+              <span className="font-label-sm text-[12px] text-on-surface">±{Math.round(gpsAccuracy)}m</span>
             </div>
-          </div>
-          <div className="w-2 h-2 rounded-full bg-inverse-surface/60 mt-1 blur-[1px]"></div>
+          )}
         </div>
 
         {/* GPS Floating Actions (Right Flank) */}
-        <div className="absolute bottom-4 right-4 flex flex-col gap-2.5 z-20">
+        <div className="absolute bottom-4 right-4 flex flex-col gap-2.5 z-[500]">
           <button
             aria-label="Định vị lại vị trí"
             onClick={handleRecenter}
+            disabled={isLocating}
             className={`w-11 h-11 bg-surface-container-lowest text-on-surface rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-transform hover:bg-surface-container ${
-              isRotating ? 'rotate-180 duration-300' : ''
+              isRotating && !isLocating ? 'rotate-180 duration-300' : ''
             }`}
           >
-            <span className="material-symbols-outlined text-[22px] text-primary">my_location</span>
+            <span className={`material-symbols-outlined text-[22px] text-primary ${isLocating ? 'animate-spin' : ''}`}>
+              {isLocating ? 'progress_activity' : 'my_location'}
+            </span>
           </button>
           <button
             aria-label="Chế độ xem phố"
-            onClick={() => alert('Vị trí: Ngã 4 Cống Quỳnh - Nguyễn Trãi, Quận 1')}
+            onClick={() => toast(`Vị trí: ${currentAddress}`, 'info')}
             className="w-11 h-11 bg-surface-container-lowest text-on-surface rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-transform hover:bg-surface-container"
           >
             <span className="material-symbols-outlined text-[22px] text-secondary">streetview</span>
@@ -253,6 +256,12 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
             <span className="font-body-sm text-[13.5px] text-on-surface font-medium leading-tight line-clamp-2 mt-0.5">
               {currentAddress}
             </span>
+            {gpsAccuracy != null && (
+              <span className="font-label-sm text-[11px] text-tertiary font-semibold flex items-center gap-1 mt-1">
+                <span className="material-symbols-outlined text-[13px]">gps_fixed</span>
+                Toạ độ GPS · ±{Math.round(gpsAccuracy)}m
+              </span>
+            )}
           </div>
           <button
             aria-label="Sửa địa chỉ"
@@ -355,10 +364,7 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
         {/* Main Full-Width Thumb CTA Action */}
         <div className="pt-1 flex flex-col gap-2">
           {submitError && (
-            <div role="alert" className="rounded-xl bg-error-container text-on-error-container font-body-sm px-[15px] py-2 flex items-center gap-2">
-              <span className="material-symbols-outlined text-[18px]">error</span>
-              <span>{submitError}</span>
-            </div>
+            <ServerMessage variant="error">{submitError}</ServerMessage>
           )}
           <button
             onClick={handleConfirm}
