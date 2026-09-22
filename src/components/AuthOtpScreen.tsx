@@ -98,12 +98,8 @@ export const AuthOtpScreen: React.FC<AuthOtpScreenProps> = ({
           </header>
 
           <section className="mt-12 text-center">
-            <div
-              className={`mx-auto mb-5 w-14 h-14 rounded-2xl flex items-center justify-center ${
-                isPartner ? 'bg-tertiary-container text-on-tertiary-container' : 'bg-primary-container text-on-primary'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[30px]">lock</span>
+            <div className="mx-auto mb-5 flex items-center justify-center">
+              <img src={ASSETS.logo} alt="Fix&Go" className="h-14 w-auto object-contain" />
             </div>
             <h1 className="font-headline-xl text-on-surface">{heading}</h1>
             <p className="mt-3 font-body-md text-on-surface-variant max-w-[340px] mx-auto">
