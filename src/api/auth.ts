@@ -28,7 +28,7 @@ export interface VerifyOtpResult {
 export const requestOtp = (phone: string) =>
   api<OtpRequestResult>('/auth/otp', { auth: false, method: 'POST', body: { phone } });
 
-/** Xác minh OTP → nhận token + vai trò (ràng role ở backend). */
+/** Xác minh OTP → nhận token + role (ràng role ở backend). */
 export async function verifyOtp(otpId: string, code: string): Promise<VerifyOtpResult> {
   const res = await api<VerifyOtpResult>('/auth/otp/verify', {
     auth: false,
