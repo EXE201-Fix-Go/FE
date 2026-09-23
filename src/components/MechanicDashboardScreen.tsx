@@ -35,6 +35,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
   live,
 }) => {
   const [isReady, setIsReady] = useState(true);
+  const [isTogglingReady, setIsTogglingReady] = useState(false);
   const [timeLeft, setTimeLeft] = useState(12);
   const totalTime = 15;
   const [isJobRejected, setIsJobRejected] = useState(false);
@@ -93,14 +94,21 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
     setIsJobRejected(true);
   };
 
-  const handleToggleReady = () => {
-    if (live) {
-      live.onToggleReady(!readyNow).catch((e: unknown) =>
-        setLiveError(e instanceof Error ? e.message : 'Không đổi được trạng thái.')
-      );
-      return;
+  const handleToggleReady = async () => {
+    if (isTogglingReady) return;
+    setIsTogglingReady(true);
+    setLiveError(null);
+    try {
+      if (live) {
+        await live.onToggleReady(!readyNow);
+      } else {
+        setIsReady((prev) => !prev);
+      }
+    } catch (e: unknown) {
+      setLiveError(e instanceof Error ? e.message : 'Không đổi được trạng thái.');
+    } finally {
+      setIsTogglingReady(false);
     }
-    setIsReady(!isReady);
   };
 
   return (
@@ -120,9 +128,6 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
                   <span className="font-label-lg text-label-lg text-on-surface leading-none font-bold">
                     {displayName}
                   </span>
-                  <span className="px-1.5 py-0.5 rounded-full bg-secondary-container text-on-secondary-fixed font-label-sm text-[10px] leading-none uppercase font-bold">
-                    Đội 1 • Q.1
-                  </span>
                 </div>
                 <span className="font-body-sm text-[12px] text-secondary leading-tight mt-0.5">
                   Kỹ thuật viên Fix&amp;Go
@@ -131,25 +136,36 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
             </div>
 
             <div className="flex items-center gap-space-sm">
-              <button
-                aria-label="Trạng thái trực tuyến"
-                onClick={handleToggleReady}
-                className={`min-h-[40px] px-3 py-1.5 rounded-full flex items-center gap-1.5 active:scale-95 transition-all shadow-xs ${
-                  readyNow
-                    ? 'bg-tertiary-fixed text-on-tertiary-fixed font-bold'
-                    : 'bg-surface-container text-secondary'
-                }`}
-                type="button"
-              >
-                <span
-                  className={`w-2.5 h-2.5 rounded-full ${
-                    readyNow ? 'bg-tertiary animate-pulse' : 'bg-secondary'
+              <div className="flex flex-col items-center gap-0.5">
+                <button
+                  aria-label={readyNow ? 'Đang online, tắt trạng thái trực tuyến' : 'Đang offline, bật trạng thái trực tuyến'}
+                  aria-pressed={readyNow}
+                  aria-busy={isTogglingReady}
+                  disabled={isTogglingReady}
+                  onClick={handleToggleReady}
+                  className={`relative h-8 w-14 shrink-0 rounded-full p-1 active:scale-95 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-wait ${
+                    readyNow
+                      ? 'bg-emerald-500'
+                      : 'bg-surface-container-high'
                   }`}
-                ></span>
-                <span className="font-label-sm text-[11px] uppercase tracking-wide font-bold">
-                  {readyNow ? 'Sẵn sàng' : 'Tạm nghỉ'}
+                  title={readyNow ? 'Đang online' : 'Đang offline'}
+                  type="button"
+                >
+                  <span
+                    className={`absolute top-1 left-1 h-6 w-6 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.22)] transition-transform duration-200 ease-out ${
+                      readyNow ? 'translate-x-6' : 'translate-x-0'
+                    }`}
+                  ></span>
+                  {isTogglingReady && (
+                    <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/10">
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/50 border-t-white" />
+                    </span>
+                  )}
+                </button>
+                <span className={`font-label-sm text-[9px] uppercase tracking-wide font-bold ${readyNow ? 'text-emerald-600' : 'text-secondary'}`}>
+                  {readyNow ? 'ONLINE' : 'OFFLINE'}
                 </span>
-              </button>
+              </div>
 
               <button
                 onClick={onOpenProfile}
