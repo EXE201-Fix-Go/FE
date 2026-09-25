@@ -3,7 +3,7 @@ import { ASSETS } from '../data';
 import { Offer, PartnerProfile, PartnerStats } from '../api/partner';
 import { ServerMessage } from './ServerMessage';
 import { formatVND } from '../domain/money';
-import { ORDER_STATUS_LABEL } from '../domain/status';
+import { PARTNER_ORDER_STATUS_LABEL } from '../domain/status';
 import { MechanicBottomNav } from './MechanicBottomNav';
 
 /** Dữ liệu thật từ backend; không có → chạy demo với đơn mẫu. */
@@ -204,7 +204,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
                   <div className="font-body-sm text-[12px] text-secondary truncate">{j.addressText}</div>
                 </div>
                 <span className="px-2 py-0.5 rounded-full bg-tertiary-container text-on-tertiary-container font-label-sm text-[11px] font-bold shrink-0">
-                  {ORDER_STATUS_LABEL[j.orderStatus] ?? j.orderStatus}
+                  {PARTNER_ORDER_STATUS_LABEL[j.orderStatus] ?? j.orderStatus}
                 </span>
               </button>
             ))}

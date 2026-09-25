@@ -20,7 +20,7 @@ import { AuthPhoneScreen } from './components/AuthPhoneScreen';
 import { AuthOtpScreen } from './components/AuthOtpScreen';
 import { PartnerRegisterScreen } from './components/PartnerRegisterScreen';
 import { ShopOwnerScreen } from './components/ShopOwnerScreen';
-import { NotificationHost, toast } from './components/notify';
+import { NotificationHost, confirmDialog, toast } from './components/notify';
 import { SERVICES } from './data';
 import { EntryDestination, ScreenId, ServiceItem, UserRole } from './types';
 import { requestOtp, verifyOtp, logout, me, AppRole, AuthUser } from './api/auth';
@@ -506,6 +506,29 @@ export default function App() {
     } else setActiveScreen('mechanic_quote_create');
   };
 
+  /** Đối tác có thể hủy/từ chối đơn đã nhận trước khi hoàn tất. */
+  const cancelActivePartnerOrder = async () => {
+    const orderCode = activeOrder?.orderCode ?? 'này';
+    const confirmed = await confirmDialog(
+      `Bạn muốn từ chối đơn ${orderCode}? Đơn sẽ được hủy và trả khách về trạng thái chưa hoàn tất.`,
+      { okText: 'Từ chối đơn', cancelText: 'Giữ đơn', danger: true }
+    );
+    if (!confirmed) return;
+
+    try {
+      if (live && activeOrder) {
+        await cancelOrder(activeOrder.id, 'Đối tác từ chối đơn sau khi đã nhận');
+        await refreshPartner();
+      } else {
+        toast('Đã từ chối đơn.', 'success');
+      }
+      setActiveOrder(null);
+      setActiveScreen('mechanic_dashboard');
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : 'Không thể từ chối đơn.', 'error');
+    }
+  };
+
   // Thợ ở màn báo giá: poll để biết khách đã duyệt chưa
   useEffect(() => {
     if (!live || !activeOrder || activeScreen !== 'mechanic_quote_create') return;
@@ -862,6 +885,7 @@ export default function App() {
               }
               setActiveScreen('mechanic_quote_create');
             }}
+            onCancelOrder={cancelActivePartnerOrder}
             onBackToDashboard={() => setActiveScreen('mechanic_dashboard')}
           />
         )}
@@ -904,6 +928,7 @@ export default function App() {
                 setActiveScreen('mechanic_dashboard');
               }
             }}
+            onCancelOrder={cancelActivePartnerOrder}
             onBackToNavigation={() => setActiveScreen('mechanic_navigation')}
           />
         )}

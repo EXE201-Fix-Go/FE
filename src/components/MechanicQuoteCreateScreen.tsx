@@ -46,6 +46,8 @@ interface MechanicQuoteCreateProps {
   /** Gửi các dòng báo giá (không gồm phí gọi thợ — backend tự cộng). */
   onQuoteSent: (items: QuoteLineInput[]) => Promise<void> | void;
   onJobFinished: () => Promise<void> | void;
+  /** Từ chối/hủy đơn sau khi đối tác đã nhận nhưng chưa hoàn tất. */
+  onCancelOrder: () => Promise<void> | void;
   onBackToNavigation: () => void;
   /** Đơn thật: trạng thái để biết khách đã duyệt chưa; dịch vụ để sinh dòng báo giá. */
   live?: {
@@ -66,6 +68,7 @@ interface MechanicQuoteCreateProps {
 export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
   onQuoteSent,
   onJobFinished,
+  onCancelOrder,
   onBackToNavigation,
   live,
 }) => {
@@ -82,6 +85,7 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
   const [revising, setRevising] = useState(false);
   const approved = live ? live.status === 'IN_PROGRESS' || live.status === 'PAUSED' : true;
   const waiting = live ? live.status === 'WAITING_FOR_APPROVAL' || live.status === 'ADDITIONAL_QUOTE' : false;
+  const canCancel = !live || ['ARRIVED', 'CHECKING', 'WAITING_FOR_APPROVAL', 'ADDITIONAL_QUOTE', 'PAUSED'].includes(live.status);
   // Bản đã gửi là bất biến: chỉ sửa được khi chưa gửi hoặc đang soạn revision mới.
   const editable = !isSent || revising;
 
@@ -316,6 +320,17 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
                 </>
               )}
             </button>
+
+            {canCancel && (
+              <button
+                type="button"
+                onClick={onCancelOrder}
+                className="w-full h-11 rounded-xl border border-error/40 text-error font-label-md font-bold flex items-center justify-center gap-2 active:scale-[0.99] transition-transform"
+              >
+                <span className="material-symbols-outlined text-[19px]">cancel</span>
+                <span>TỪ CHỐI ĐƠN</span>
+              </button>
+            )}
           </div>
         )}
       </div>

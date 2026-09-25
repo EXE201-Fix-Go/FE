@@ -38,6 +38,24 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   EXPIRED: 'Đã hết hạn',
 };
 
+/** Nhãn trong dashboard đối tác — chủ thể chờ quyết định là khách hàng. */
+export const PARTNER_ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
+  PENDING_CONFIRMATION: 'Chờ khách xác nhận',
+  REQUESTED: 'Đang tìm thợ',
+  ASSIGNED: 'Đang di chuyển đến khách',
+  ARRIVED: 'Đã đến nơi',
+  CHECKING: 'Đang kiểm tra xe',
+  WAITING_FOR_APPROVAL: 'Chờ khách duyệt giá',
+  APPROVED: 'Khách đã duyệt giá',
+  IN_PROGRESS: 'Đang sửa xe',
+  ADDITIONAL_QUOTE: 'Chờ khách duyệt giá bổ sung',
+  PAUSED: 'Tạm dừng',
+  COMPLETED: 'Hoàn tất',
+  CANCELLED: 'Đã hủy',
+  NO_PARTNER_FOUND: 'Không tìm được thợ',
+  EXPIRED: 'Đã hết hạn',
+};
+
 /** Trạng thái cuối — dừng polling để tránh hao pin (FRONTEND spec §9). */
 const TERMINAL_STATUSES: OrderStatus[] = [
   ORDER_STATUS.COMPLETED,

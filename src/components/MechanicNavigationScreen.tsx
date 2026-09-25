@@ -5,6 +5,8 @@ import { toast } from './notify';
 interface MechanicNavigationProps {
   /** Bấm "Đã tới nơi" — khi nối backend là async (ARRIVED → CHECKING). */
   onArrived: () => Promise<void> | void;
+  /** Từ chối/hủy đơn sau khi đối tác đã nhận nhưng chưa hoàn tất. */
+  onCancelOrder: () => Promise<void> | void;
   /** Đơn thật (tên khách, địa chỉ, ghi chú); không có → mẫu. */
   live?: { orderCode: string; contactName?: string | null; addressText: string; note?: string | null; serviceName: string; photoUrls?: string[] };
   onBackToDashboard: () => void;
@@ -12,6 +14,7 @@ interface MechanicNavigationProps {
 
 export const MechanicNavigationScreen: React.FC<MechanicNavigationProps> = ({
   onArrived,
+  onCancelOrder,
   live,
   onBackToDashboard,
 }) => {
@@ -170,6 +173,15 @@ export const MechanicNavigationScreen: React.FC<MechanicNavigationProps> = ({
             <span>ĐÃ TỚI NƠI • LẬP BÁO GIÁ</span>
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={onCancelOrder}
+          className="w-full h-11 rounded-xl border border-error/40 text-error font-label-md font-bold flex items-center justify-center gap-2 active:scale-[0.99] transition-transform"
+        >
+          <span className="material-symbols-outlined text-[19px]">cancel</span>
+          <span>TỪ CHỐI ĐƠN</span>
+        </button>
       </div>
     </div>
   );
