@@ -1,5 +1,5 @@
 import React from 'react';
-import type { OrderStatus } from '../domain/status';
+import { ORDER_STATUS_LABEL, OrderStatus } from '../domain/status';
 
 export type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
 
@@ -18,6 +18,21 @@ export const StatusBadge: React.FC<{ tone?: Tone; children: React.ReactNode }> =
     {children}
   </span>
 );
+
+/**
+ * Nhãn cho góc nhìn quản trị. ORDER_STATUS_LABEL được viết cho khách ("Chờ bạn duyệt giá"), nên với admin
+ * những nhãn xưng "bạn" phải nói rõ chủ thể là khách.
+ */
+export function adminOrderLabel(status: OrderStatus): string {
+  switch (status) {
+    case 'PENDING_CONFIRMATION':
+      return 'Chờ khách xác nhận';
+    case 'WAITING_FOR_APPROVAL':
+      return 'Chờ khách duyệt giá';
+    default:
+      return ORDER_STATUS_LABEL[status] ?? status;
+  }
+}
 
 /** Màu theo ý nghĩa nghiệp vụ của trạng thái đơn (14 giá trị, ERD §7.1). */
 export function orderTone(status: OrderStatus): Tone {

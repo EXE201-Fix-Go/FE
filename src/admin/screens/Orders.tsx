@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { listOrders } from '../adminApi';
 import { useQuery } from '../useQuery';
 import { Pager } from '../Pager';
-import { orderTone, StatusBadge } from '../StatusBadge';
+import { adminOrderLabel, orderTone, StatusBadge } from '../StatusBadge';
 import { ServerMessage } from '../../components/ServerMessage';
 import { formatVND } from '../../domain/money';
-import { ORDER_STATUS, ORDER_STATUS_LABEL, OrderStatus } from '../../domain/status';
+import { ORDER_STATUS, OrderStatus } from '../../domain/status';
 
 const CARD = 'rounded-2xl border border-surface-container bg-surface-container-lowest shadow-sm';
 const STATUSES = Object.values(ORDER_STATUS) as OrderStatus[];
@@ -37,7 +37,7 @@ export const Orders: React.FC<{ initialStatus?: OrderStatus }> = ({ initialStatu
             <option value="">Tất cả trạng thái</option>
             {STATUSES.map((s) => (
               <option key={s} value={s}>
-                {ORDER_STATUS_LABEL[s]}
+                {adminOrderLabel(s)}
               </option>
             ))}
           </select>
@@ -74,7 +74,7 @@ export const Orders: React.FC<{ initialStatus?: OrderStatus }> = ({ initialStatu
           <tbody className="divide-y divide-surface-container">
             {data?.items.map((o) => (
               <tr key={o.id}>
-                <td className="px-4 py-3 font-mono text-[12.5px] font-bold text-on-surface">{o.orderCode}</td>
+                <td className="whitespace-nowrap px-4 py-3 font-mono text-[12.5px] font-bold text-on-surface">{o.orderCode}</td>
                 <td className="px-4 py-3 text-on-surface">{o.serviceName ?? '—'}</td>
                 <td className="px-4 py-3">
                   <div className="text-on-surface">{o.customerName || '—'}</div>
@@ -82,16 +82,16 @@ export const Orders: React.FC<{ initialStatus?: OrderStatus }> = ({ initialStatu
                 </td>
                 <td className="px-4 py-3 text-on-surface">{o.partnerName ?? <span className="text-secondary">Chưa có</span>}</td>
                 <td className="px-4 py-3">
-                  <StatusBadge tone={orderTone(o.status)}>{ORDER_STATUS_LABEL[o.status] ?? o.status}</StatusBadge>
+                  <StatusBadge tone={orderTone(o.status)}>{adminOrderLabel(o.status)}</StatusBadge>
                 </td>
-                <td className="px-4 py-3 text-right tabular-nums text-on-surface">
+                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-on-surface">
                   {formatVND(o.callOutFee)}
                   {o.travelFee != null && o.travelFee > 0 && <div className="text-[12px] text-secondary">+ {formatVND(o.travelFee)}</div>}
                 </td>
-                <td className="px-4 py-3 text-right font-bold tabular-nums text-on-surface">
+                <td className="whitespace-nowrap px-4 py-3 text-right font-bold tabular-nums text-on-surface">
                   {o.paidAmount != null ? formatVND(o.paidAmount) : <span className="font-normal text-secondary">—</span>}
                 </td>
-                <td className="px-4 py-3 text-secondary">{fmtDate(o.createdAt)}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-secondary">{fmtDate(o.createdAt)}</td>
               </tr>
             ))}
             {data && data.items.length === 0 && (

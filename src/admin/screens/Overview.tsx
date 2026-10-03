@@ -3,8 +3,8 @@ import { getOverview } from '../adminApi';
 import { useQuery } from '../useQuery';
 import { ServerMessage } from '../../components/ServerMessage';
 import { formatVND } from '../../domain/money';
-import { ORDER_STATUS, ORDER_STATUS_LABEL, OrderStatus } from '../../domain/status';
-import { orderTone, StatusBadge } from '../StatusBadge';
+import { ORDER_STATUS, OrderStatus } from '../../domain/status';
+import { adminOrderLabel, orderTone, StatusBadge } from '../StatusBadge';
 import type { AdminTab } from '../tabs';
 
 const CARD = 'rounded-2xl border border-surface-container bg-surface-container-lowest p-space-md shadow-sm';
@@ -125,7 +125,7 @@ export const Overview: React.FC<{ onGoto: (tab: AdminTab, ordersStatus?: OrderSt
                     className="rounded-xl border border-surface-container p-3 text-left transition-colors hover:bg-surface-container-low"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <StatusBadge tone={orderTone(s)}>{ORDER_STATUS_LABEL[s]}</StatusBadge>
+                      <StatusBadge tone={orderTone(s)}>{adminOrderLabel(s)}</StatusBadge>
                       <span className="font-label-md text-label-md font-bold tabular-nums text-on-surface">{n}</span>
                     </div>
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-container">
