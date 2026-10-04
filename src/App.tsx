@@ -20,6 +20,7 @@ import { AuthPhoneScreen } from './components/AuthPhoneScreen';
 import { AuthOtpScreen } from './components/AuthOtpScreen';
 import { PartnerRegisterScreen } from './components/PartnerRegisterScreen';
 import { ShopOwnerScreen } from './components/ShopOwnerScreen';
+import { AdminApp } from './admin/AdminApp';
 import { NotificationHost, confirmDialog, toast } from './components/notify';
 import { SERVICES } from './data';
 import { EntryDestination, ScreenId, ServiceItem, UserRole } from './types';
@@ -162,7 +163,7 @@ export default function App() {
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
   // Khách vào trang chủ lần đầu: xin quyền và lấy vị trí ngay để đặt đơn đúng chỗ.
   useEffect(() => {
-    if (activeScreen === 'customer_home' && locationStatus === 'idle') void locateAndName();
+    if (activeScreen === 'customer_home' && locationStatus === 'idle' && user?.appRole !== 'ADMIN') void locateAndName();
   }, [activeScreen, locationStatus, locateAndName]);
 
   // ── Trạng thái đăng nhập ──────────────────────────────────────────
@@ -306,9 +307,9 @@ export default function App() {
         if (pendingDest === 'customer') toast('Số này là tài khoản thợ — đã chuyển sang app Đối tác.', 'info');
         break;
       case 'ADMIN':
+        // Trang quản trị được render sớm ở dưới (user.appRole === 'ADMIN'); không cần chuyển màn khách.
         setRole('customer');
         setActiveScreen('customer_home');
-        toast('Tài khoản ADMIN: prototype chưa có màn quản trị, dùng docs/order-flow.http để duyệt KYC.', 'info');
         break;
     }
   };
@@ -593,6 +594,11 @@ export default function App() {
         <NotificationHost />
       </div>
     );
+  }
+
+  // Tài khoản ADMIN: trang quản trị toàn màn hình (mã nằm trọn trong src/admin/).
+  if (user?.appRole === 'ADMIN') {
+    return <AdminApp user={user} onLogout={handleLogout} />;
   }
 
   // Helper title for CustomerHeader
