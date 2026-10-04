@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { DEFAULT_MECHANIC, SERVICES } from '../data';
 import { QuoteLineInput } from '../api/partner';
+import type { QuoteItem } from '../api/orders';
 import { formatVND } from '../domain/money';
 import { ServerMessage } from './ServerMessage';
 
@@ -35,11 +36,41 @@ function linesFromOrder(callOutFee: number, serviceId: string, extraServiceIds: 
       const e = svc(code);
       return { id: `svc:${code}`, name: `${e?.name ?? code} (khách chọn thêm)`, price: e?.price ?? 0, checked: true, required: false, type: 'LABOR' as const, group: 'fixed' as const };
     }),
+    ...optionalLines(),
+  ];
+  return lines;
+}
+
+/** Gợi ý thêm, mặc định chưa chọn. */
+function optionalLines(): Line[] {
+  return [
     { id: 'part', name: 'Linh kiện thay thế (nếu có)', price: 50000, checked: false, required: false, type: 'PART', group: 'parts' },
     { id: 'night', name: 'Phụ phí ban đêm (sau 22:00)', price: 20000, checked: false, required: false, type: 'SURCHARGE', group: 'extra' },
     { id: 'promo', name: 'Ưu đãi Fix&Go khách mới', price: -20000, checked: false, required: false, type: 'DISCOUNT', group: 'extra' },
   ];
-  return lines;
+}
+
+/**
+ * Báo giá bổ sung chứa TOÀN BỘ giá trị đơn (RB-42), không phải phần chênh lệch: điền sẵn các dòng của bản khách đã duyệt
+ * để thợ chỉ việc thêm phần phát sinh. Phí gọi thợ và phí di chuyển do backend tự cộng nên không nằm trong danh sách gửi đi.
+ */
+function linesFromApproved(callOutFee: number, approved: QuoteItem[]): Line[] {
+  const kept = approved
+    .filter((i) => i.itemType !== 'TRAVEL')
+    .map((i): Line => ({
+      id: i.serviceId ? `svc:${i.serviceId}` : `q:${i.lineNo}`,
+      name: i.description,
+      price: i.itemType === 'DISCOUNT' ? -i.lineAmount : i.lineAmount,
+      checked: true,
+      required: false,
+      type: i.itemType,
+      group: i.itemType === 'PART' ? 'parts' : i.itemType === 'SURCHARGE' || i.itemType === 'DISCOUNT' ? 'extra' : 'fixed',
+    }));
+  return [
+    { id: 'callout', name: 'Phí gọi thợ (khách đã xác nhận)', price: callOutFee, checked: true, required: true, type: 'SURCHARGE', group: 'fixed' },
+    ...kept,
+    ...optionalLines(),
+  ];
 }
 
 interface MechanicQuoteCreateProps {
@@ -62,6 +93,8 @@ interface MechanicQuoteCreateProps {
     serviceId: string;
     extraServiceIds: string[];
     quoteRevision?: number | null;
+    /** Các dòng của bản báo giá khách đã duyệt (nếu có) — nền cho báo giá bổ sung. */
+    approvedItems?: QuoteItem[] | null;
   };
 }
 
@@ -73,7 +106,11 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
   live,
 }) => {
   const [items, setItems] = useState<Line[]>(() =>
-    live ? linesFromOrder(live.callOutFee, live.serviceId, live.extraServiceIds) : DEMO_LINES
+    !live
+      ? DEMO_LINES
+      : live.approvedItems && live.approvedItems.length > 0
+        ? linesFromApproved(live.callOutFee, live.approvedItems)
+        : linesFromOrder(live.callOutFee, live.serviceId, live.extraServiceIds)
   );
 
   const [diagnosis, setDiagnosis] = useState('Thủng lốp do đinh tán 3cm • Cần vá nấm chịu lực');

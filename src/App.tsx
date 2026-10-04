@@ -906,6 +906,7 @@ export default function App() {
                     serviceId: activeOrder.serviceId,
                     extraServiceIds: activeOrder.extraServiceIds,
                     quoteRevision: activeOrder.quote?.revisionNo ?? null,
+                    approvedItems: activeOrder.quote?.status === 'APPROVED' ? activeOrder.quote.items : null,
                   }
                 : undefined
             }
