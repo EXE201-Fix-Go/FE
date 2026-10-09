@@ -417,9 +417,11 @@ export default function App() {
       setJobs(d.jobs);
       setStats(d.stats);
       setPartnerError(
-        p.verificationStatus !== 'APPROVED'
-          ? 'Hồ sơ KYC đang chờ Fix&Go duyệt — bạn chưa nhận được đơn. (Admin duyệt qua API /admin/partners/{id}/verify)'
-          : null
+        p.verificationStatus === 'APPROVED'
+          ? null
+          : p.verificationStatus === 'REJECTED'
+            ? 'Hồ sơ KYC chưa được duyệt. Vui lòng liên hệ Fix&Go để được hỗ trợ.'
+            : 'Hồ sơ KYC đang chờ Fix&Go duyệt (trong vòng 24 giờ). Bạn sẽ nhận được đơn sau khi được duyệt.'
       );
     } catch (e: unknown) {
       setPartnerError(e instanceof Error ? e.message : 'Không tải được dữ liệu đối tác.');

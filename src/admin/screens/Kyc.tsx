@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AdminPartnerRow, listPartners, verifyPartner, VerificationStatus } from '../adminApi';
 import { useQuery } from '../useQuery';
 import { Pager } from '../Pager';
+import { KycDocumentViewer } from '../KycDocumentViewer';
 import { StatusBadge, Tone } from '../StatusBadge';
 import { ServerMessage } from '../../components/ServerMessage';
 import { confirmDialog, toast } from '../../components/notify';
@@ -40,6 +41,7 @@ export const Kyc: React.FC = () => {
   const [filter, setFilter] = useState<Filter>('PENDING');
   const [page, setPage] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<AdminPartnerRow | null>(null);
   const { data, error, loading, reload } = useQuery(
     () => listPartners(filter === 'ALL' ? undefined : filter, page),
     [filter, page]
@@ -59,6 +61,7 @@ export const Kyc: React.FC = () => {
     try {
       await verifyPartner(p.userId, status);
       toast(approve ? `Đã duyệt ${who}.` : `Đã từ chối ${who}.`, 'success');
+      setViewing(null);
       reload();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Không cập nhật được hồ sơ.', 'error');
@@ -72,8 +75,8 @@ export const Kyc: React.FC = () => {
       <div>
         <h2 className="font-headline-md text-headline-md font-bold text-on-surface">Duyệt hồ sơ thợ (KYC)</h2>
         <p className="font-body-sm text-[12.5px] text-secondary">
-          Thợ chỉ nhận được đơn sau khi được duyệt. Ảnh giấy tờ nằm ở kho lưu trữ riêng nên trang này chỉ hiện loại giấy tờ và
-          trạng thái đối chiếu.
+          Thợ chỉ nhận được đơn sau khi được duyệt. Mở hồ sơ để xem ảnh CCCD và chân dung (lưu ở kho riêng tư, chỉ admin xem được);
+          chỉ duyệt được khi đủ cả ba ảnh.
         </p>
       </div>
 
@@ -131,32 +134,30 @@ export const Kyc: React.FC = () => {
                 ))}
               </div>
 
-              {p.verificationStatus !== 'APPROVED' && (
-                <div className="mt-4 flex gap-2">
-                  <button
-                    type="button"
-                    disabled={busyId === p.userId}
-                    onClick={() => void decide(p, 'APPROVED')}
-                    className="h-10 flex-1 rounded-xl bg-tertiary font-label-md text-label-md font-bold text-on-tertiary transition-opacity disabled:opacity-50"
-                  >
-                    {p.verificationStatus === 'REJECTED' ? 'Duyệt lại' : 'Duyệt'}
-                  </button>
-                  {p.verificationStatus === 'PENDING' && (
-                    <button
-                      type="button"
-                      disabled={busyId === p.userId}
-                      onClick={() => void decide(p, 'REJECTED')}
-                      className="h-10 flex-1 rounded-xl bg-error-container font-label-md text-label-md font-bold text-error transition-opacity disabled:opacity-50"
-                    >
-                      Từ chối
-                    </button>
-                  )}
-                </div>
-              )}
+              <div className="mt-4">
+                <button
+                  type="button"
+                  disabled={busyId === p.userId}
+                  onClick={() => setViewing(p)}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-tertiary font-label-md text-label-md font-bold text-on-tertiary transition-[transform,opacity] duration-150 ease-out active:scale-[0.97] disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[20px]">badge</span>
+                  {p.verificationStatus === 'APPROVED' ? 'Xem giấy tờ' : 'Xem giấy tờ & duyệt'}
+                </button>
+              </div>
             </div>
           );
         })}
       </div>
+
+      {viewing && (
+        <KycDocumentViewer
+          partner={viewing}
+          busy={busyId === viewing.userId}
+          onClose={() => setViewing(null)}
+          onDecide={(status) => void decide(viewing, status)}
+        />
+      )}
 
       {data && (
         <Pager page={data.page} totalPages={data.totalPages} totalElements={data.totalElements} onPage={setPage} disabled={loading} />

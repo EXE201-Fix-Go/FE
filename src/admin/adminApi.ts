@@ -1,6 +1,6 @@
 // API trang quản trị. Người dùng (khoá/mở khoá) và duyệt KYC dùng lại endpoint có sẵn của BE;
 // overview / partners / orders là 3 endpoint GET chỉ-đọc mới (BE: module/admin/AdminDashboardController).
-import { api } from '../api/client';
+import { api, apiBlob } from '../api/client';
 import type { AppRole } from '../api/auth';
 import type { OrderStatus } from '../domain/status';
 
@@ -99,3 +99,18 @@ export const verifyPartner = (id: string, status: Exclude<VerificationStatus, 'P
 
 export const listOrders = (status: OrderStatus | undefined, page = 0, size = 20) =>
   api<PageResponse<AdminOrderRow>>(`/admin/orders${qs({ status, page, size })}`);
+
+/** Một giấy tờ KYC của thợ (BE: GET /admin/partners/{id}/documents). `fileAvailable=false` = hồ sơ cũ dùng khóa giả, không có ảnh. */
+export interface PartnerDocumentFile {
+  id: string;
+  documentType: string;
+  reviewStatus: string;
+  createdAt: string;
+  fileAvailable: boolean;
+}
+
+export const listPartnerDocuments = (partnerId: string) => api<PartnerDocumentFile[]>(`/admin/partners/${partnerId}/documents`);
+
+/** Ảnh giấy tờ lấy qua backend (kho riêng tư, không có URL công khai). Gọi URL.createObjectURL trên kết quả. */
+export const fetchPartnerDocumentImage = (partnerId: string, documentId: string) =>
+  apiBlob(`/admin/partners/${partnerId}/documents/${documentId}/content`);
