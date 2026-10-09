@@ -12,6 +12,8 @@ export interface PartnerProfile {
   verificationStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
   availability: 'ONLINE' | 'BUSY' | 'OFFLINE';
   serviceCodes: string[];
+  /** Giấy tờ KYC đã nộp (loại + trạng thái đối chiếu); không có ảnh. */
+  documents?: { id: string; documentType: string; reviewStatus: string }[];
 }
 export interface RegisterPartnerInput {
   fullName: string;
@@ -96,3 +98,15 @@ export const completeOrder = (orderId: string) => api<Order>(`/orders/${orderId}
 export const listStaff = () => api<Staff[]>('/partner/shop/staff');
 export const inviteStaff = (phone: string, fullName: string) =>
   api<Staff[]>('/partner/shop/staff', { method: 'POST', body: { phone, fullName } });
+
+/** Thợ rút khỏi đơn đã nhận trước khi tới nơi: đơn được phát lại cho thợ khác, khách không bị huỷ (BE: ASSIGNED → REQUESTED). */
+export const withdrawOrder = (orderId: string, reason?: string) =>
+  api<void>(`/orders/${orderId}/withdraw`, { method: 'POST', body: reason ? { reason } : undefined });
+
+/** Gửi vị trí định kỳ khi đang trực. Chỉ đổi vị trí, không đổi ONLINE/BUSY (khác updatePresence). */
+export const updateLocation = (lat: number, lng: number) =>
+  api<void>('/partner/me/location', { method: 'PUT', body: { lat, lng } });
+
+/** Nộp / nộp lại bộ giấy tờ KYC cho hồ sơ đối tác đã có (thợ vào tiệm qua lời mời, hoặc thợ bị từ chối) → hồ sơ về PENDING. */
+export const submitPartnerDocuments = (documents: RegisterPartnerInput['documents']) =>
+  api<PartnerProfile>('/partner/me/documents', { method: 'PUT', body: { documents } });

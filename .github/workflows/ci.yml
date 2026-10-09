@@ -1,0 +1,30 @@
+name: CI
+
+# Chặn merge khi lỗi kiểu TypeScript hoặc build hỏng. (Deploy lên GitHub Pages chạy riêng ở deploy.yml, chỉ trên main.)
+on:
+  pull_request:
+  push:
+    branches-ignore: [main, test-deploy]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+      - name: Type check
+        run: npm run lint
+      - name: Build
+        run: npm run build

@@ -20,6 +20,7 @@ import { AuthPhoneScreen } from './components/AuthPhoneScreen';
 import { AuthOtpScreen } from './components/AuthOtpScreen';
 import { PartnerRegisterScreen } from './components/PartnerRegisterScreen';
 import { ShopOwnerScreen } from './components/ShopOwnerScreen';
+import { PartnerDocumentsScreen } from './components/PartnerDocumentsScreen';
 import { AdminApp } from './admin/AdminApp';
 import { NotificationHost, confirmDialog, toast } from './components/notify';
 import { useCatalog } from './catalog/CatalogProvider';
@@ -31,8 +32,11 @@ import {
 } from './api/orders';
 import {
   Offer, PartnerProfile, PartnerStats, getPartnerMe, updatePresence, acceptOffer, declineOffer,
-  arriveAtOrder, startChecking, sendQuote, completeOrder, registerPartner, QuoteLineInput,
+  arriveAtOrder, startChecking, sendQuote, completeOrder, registerPartner, QuoteLineInput, withdrawOrder, updateLocation, submitPartnerDocuments,
 } from './api/partner';
+import { leaveShop } from './api/invitations';
+import { listMyInvitations } from './api/invitations';
+import { currentPosition, LOCATION_PING_MS, PARTNER_GPS_ENABLED } from './domain/partnerLocation';
 import { ORDER_STATUS_LABEL, isTerminal } from './domain/status';
 import { uploadPhoto } from './api/uploads';
 import { getPartnerDashboard } from './api/partner';
@@ -304,6 +308,23 @@ export default function App() {
     const res = await verifyOtp(otp.otpId, code);
     setUser(res.user);
     routeAfterAuth(res.role);
+    if (res.role !== 'ADMIN') {
+      // Lời mời vào tiệm gửi tới SĐT này: nhắc người dùng vào Hồ sơ để trả lời (không chặn đăng nhập nếu lỗi).
+      listMyInvitations()
+        .then((l) => l.length > 0 && toast('Bạn có lời mời vào tiệm. Mở Hồ sơ để tham gia hoặc từ chối.', 'info'))
+        .catch(() => {});
+    }
+  };
+
+  /** Sau khi vào/rời tiệm: vai trò tài khoản đã đổi → tải lại và chuyển sang đúng app. */
+  const refreshAccount = async () => {
+    try {
+      const u = await me();
+      setUser(u);
+      routeAfterAuth(u.appRole);
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : 'Không tải lại được tài khoản.', 'error');
+    }
   };
 
   const backToEntry = handleLogout;
@@ -444,7 +465,8 @@ export default function App() {
       try {
         const p = await getPartnerMe();
         if (!cancelled && p.verificationStatus === 'APPROVED' && p.availability === 'OFFLINE') {
-          await updatePresence('ONLINE'); // giữ vị trí đã đăng ký (không ép GPS thiết bị người test)
+          const pos = await currentPosition(); // null khi VITE_PARTNER_GPS=off (test 1 máy) hoặc không có quyền → giữ vị trí đã đăng ký
+          await updatePresence('ONLINE', pos?.lat, pos?.lng);
         }
       } catch {
         /* báo ở refreshPartner */
@@ -466,6 +488,30 @@ export default function App() {
     };
   }, [activeScreen, refreshPartner]);
 
+  // Chưa có đủ giấy tờ (thợ vừa vào tiệm qua lời mời) hoặc hồ sơ bị từ chối: cho nộp / nộp lại.
+  const needsDocuments =
+    !!profile &&
+    profile.verificationStatus !== 'APPROVED' &&
+    (profile.verificationStatus === 'REJECTED' || (profile.documents?.length ?? 0) < 3);
+
+  // Thợ đang trực: gửi vị trí mỗi ~60 giây để BE chỉ chọn thợ có vị trí còn mới (DISPATCH_LOCATION_MAX_AGE).
+  const onlineForPing = profile?.availability === 'ONLINE' && profile.verificationStatus === 'APPROVED';
+  useEffect(() => {
+    if (!onlineForPing || !PARTNER_GPS_ENABLED) return;
+    let stopped = false;
+    const ping = async () => {
+      if (document.hidden) return;
+      const pos = await currentPosition();
+      if (pos && !stopped) updateLocation(pos.lat, pos.lng).catch(() => {});
+    };
+    void ping();
+    const id = setInterval(() => void ping(), LOCATION_PING_MS);
+    return () => {
+      stopped = true;
+      clearInterval(id);
+    };
+  }, [onlineForPing]);
+
   const openJob = async (job: Offer) => {
     const o = await getOrder(job.orderId);
     setActiveOrder(o);
@@ -477,24 +523,47 @@ export default function App() {
     } else setActiveScreen('mechanic_quote_create');
   };
 
-  /** Đối tác có thể hủy/từ chối đơn đã nhận trước khi hoàn tất. */
+  /**
+   * Trước khi tới nơi (ASSIGNED): thợ RÚT khỏi đơn, đơn được phát lại cho thợ khác và khách không bị huỷ.
+   * Từ khi đã tới nơi: thợ chỉ có thể HỦY đơn của khách.
+   */
   const cancelActivePartnerOrder = async () => {
-    const orderCode = activeOrder?.orderCode ?? 'này';
+    if (!activeOrder) return;
+    const orderCode = activeOrder.orderCode;
+    const withdrawing = activeOrder.status === 'ASSIGNED';
     const confirmed = await confirmDialog(
-      `Bạn muốn từ chối đơn ${orderCode}? Đơn sẽ được hủy và trả khách về trạng thái chưa hoàn tất.`,
-      { okText: 'Từ chối đơn', cancelText: 'Giữ đơn', danger: true }
+      withdrawing
+        ? `Rút khỏi đơn ${orderCode}? Đơn sẽ được chuyển cho thợ khác, khách không bị huỷ và bạn sẽ không được mời lại đơn này.`
+        : `Hủy đơn ${orderCode}? Đơn của khách sẽ bị huỷ.`,
+      { okText: withdrawing ? 'Rút khỏi đơn' : 'Hủy đơn', cancelText: 'Giữ đơn', danger: true }
     );
     if (!confirmed) return;
 
     try {
-      if (activeOrder) {
-        await cancelOrder(activeOrder.id, 'Đối tác từ chối đơn sau khi đã nhận');
-        await refreshPartner();
-      }
+      if (withdrawing) await withdrawOrder(activeOrder.id, 'Đối tác rút khỏi đơn');
+      else await cancelOrder(activeOrder.id, 'Đối tác hủy đơn');
+      await refreshPartner();
       setActiveOrder(null);
       setActiveScreen('mechanic_dashboard');
     } catch (e: unknown) {
-      toast(e instanceof Error ? e.message : 'Không thể từ chối đơn.', 'error');
+      toast(e instanceof Error ? e.message : 'Không thực hiện được.', 'error');
+    }
+  };
+
+  const leaveCurrentShop = async () => {
+    const ok = await confirmDialog('Rời khỏi tiệm? Bạn vẫn giữ tài khoản và có thể nhận đơn độc lập.', {
+      okText: 'Rời khỏi tiệm',
+      cancelText: 'Ở lại',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await leaveShop();
+      toast('Bạn đã rời khỏi tiệm.', 'success');
+      await refreshPartner();
+      await refreshAccount();
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : 'Không rời được tiệm.', 'error');
     }
   };
 
@@ -592,7 +661,7 @@ export default function App() {
     }
   };
 
-  const isPartnerFull = activeScreen === 'partner_register' || activeScreen === 'shop_owner';
+  const isPartnerFull = activeScreen === 'partner_register' || activeScreen === 'partner_documents' || activeScreen === 'shop_owner';
   const isCustomerFlow = !activeScreen.startsWith('mechanic_') && !isPartnerFull;
   const showCustomerBottomNav =
     activeScreen === 'customer_home' || activeScreen === 'customer_history' || activeScreen === 'customer_profile';
@@ -642,10 +711,7 @@ export default function App() {
               setActiveScreen('customer_confirm_request');
             }}
             currentAddress={currentAddress}
-            onUpdateAddress={() => {
-              const newAddr = prompt('Nhập địa chỉ gặp sự cố mới:', currentAddress);
-              if (newAddr) setCurrentAddress(newAddr);
-            }}
+            onAddressChange={setCurrentAddress}
             coords={coords}
             locationStatus={locationStatus}
             onLocate={() => void locateAndName()}
@@ -663,10 +729,7 @@ export default function App() {
             onBack={() => setActiveScreen('customer_home')}
             onConfirmDispatch={placeOrder}
             onChangeService={() => setActiveScreen('customer_home')}
-            onEditAddress={() => {
-              const newAddr = prompt('Chỉnh sửa địa chỉ:', currentAddress);
-              if (newAddr) setCurrentAddress(newAddr);
-            }}
+            onAddressChange={setCurrentAddress}
           />
         )}
 
@@ -745,7 +808,7 @@ export default function App() {
         )}
 
         {activeScreen === 'customer_profile' && (
-          <CustomerProfileScreen onLogout={backToEntry} user={user} />
+          <CustomerProfileScreen onLogout={backToEntry} user={user} onJoinedShop={() => void refreshAccount()} />
         )}
 
         {/* Mechanic Views */}
@@ -760,10 +823,12 @@ export default function App() {
               offers,
               jobs,
               error: partnerError,
+              onFixDocuments: needsDocuments ? () => setActiveScreen('partner_documents') : undefined,
               onAccept: async (assignmentId) => {
-                // Mốc tính phí di chuyển = vị trí ĐĂNG KÝ hiện tại của thợ (partner_profiles.current_lat/lng),
-                // KHÔNG ghi đè bằng GPS thiết bị người test — nhờ vậy km luôn tính đúng dù test 1 máy.
-                const accepted = await acceptOffer(assignmentId);
+                // Mốc tính phí di chuyển = vị trí thợ lúc bấm nhận: GPS thật nếu có; khi test 1 máy (VITE_PARTNER_GPS=off)
+                // hoặc không có GPS thì BE dùng vị trí đã lưu của thợ.
+                const pos = await currentPosition();
+                const accepted = await acceptOffer(assignmentId, pos ?? undefined);
                 setOffers([]);
                 await openJob(accepted);
               },
@@ -773,8 +838,12 @@ export default function App() {
               },
               onOpenJob: (job) => openJob(job).catch((e: unknown) => toast(e instanceof Error ? e.message : 'Lỗi', 'error')),
               onToggleReady: async (ready) => {
-                // Chỉ bật/tắt trực tuyến; giữ nguyên vị trí đăng ký của thợ.
-                setProfile(await updatePresence(ready ? 'ONLINE' : 'OFFLINE'));
+                // Bật trực tuyến kèm GPS thật (nếu có) để BE chọn đúng thợ gần khách.
+                const pos = ready ? await currentPosition() : null;
+                setProfile(await updatePresence(ready ? 'ONLINE' : 'OFFLINE', pos?.lat, pos?.lng));
+                if (ready && PARTNER_GPS_ENABLED && !pos) {
+                  toast('Chưa lấy được vị trí. Hãy bật định vị để nhận đơn gần bạn.', 'info');
+                }
               },
             }}
           />
@@ -810,6 +879,8 @@ export default function App() {
             onIncome={() => setActiveScreen('mechanic_income')}
             onReviews={() => setActiveScreen('mechanic_reviews')}
             onLogout={backToEntry}
+            onJoinedShop={() => void refreshAccount()}
+            onLeaveShop={() => void leaveCurrentShop()}
           />
         )}
 
@@ -882,6 +953,18 @@ export default function App() {
               setProfile(p);
               toast('Đã gửi hồ sơ KYC. Fix&Go sẽ duyệt trong vòng 24 giờ — bạn chưa nhận đơn cho tới khi được duyệt.', 'success');
               setActiveScreen(p.partnerType === 'SHOP' ? 'shop_owner' : 'mechanic_dashboard');
+            }}
+          />
+        )}
+
+        {activeScreen === 'partner_documents' && (
+          <PartnerDocumentsScreen
+            rejected={profile?.verificationStatus === 'REJECTED'}
+            onBack={() => setActiveScreen('mechanic_dashboard')}
+            onSubmit={async (documents) => {
+              setProfile(await submitPartnerDocuments(documents));
+              toast('Đã gửi giấy tờ. Fix&Go sẽ duyệt trong vòng 24 giờ.', 'success');
+              setActiveScreen('mechanic_dashboard');
             }}
           />
         )}
