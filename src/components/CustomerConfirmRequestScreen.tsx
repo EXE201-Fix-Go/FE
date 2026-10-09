@@ -6,6 +6,7 @@ import { ServerMessage } from './ServerMessage';
 import { MapView } from './MapView';
 import { Coords } from '../domain/geo';
 import { toast } from './notify';
+import { AddressEditDialog } from './AddressEditDialog';
 
 const MAX_PHOTOS = 6;
 
@@ -16,7 +17,8 @@ interface CustomerConfirmRequestProps {
   /** Gửi đơn lên backend; ném lỗi nếu thất bại → màn báo và cho thử lại. */
   onConfirmDispatch: (note: string, extraServiceIds: string[], photos: File[]) => Promise<void>;
   onChangeService: () => void;
-  onEditAddress: () => void;
+  /** Địa chỉ mới người dùng nhập trong hộp thoại sửa địa chỉ. */
+  onAddressChange: (address: string) => void;
   /** Sai số GPS (mét) nếu đã định vị được — hiển thị để khách yên tâm toạ độ gửi đi là thật. */
   gpsAccuracy?: number | null;
   /** Định vị lại bằng GPS (cập nhật toạ độ + tên địa chỉ). */
@@ -33,7 +35,7 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
   onBack,
   onConfirmDispatch,
   onChangeService,
-  onEditAddress,
+  onAddressChange,
   gpsAccuracy,
   onLocate,
   isLocating,
@@ -42,6 +44,7 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
   const { services, pricing } = useCatalog();
   const callOutFee = pricing?.callOutFee ?? null;
   const [note, setNote] = useState('');
+  const [editingAddress, setEditingAddress] = useState(false);
   const [isRotating, setIsRotating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -258,8 +261,9 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
           </div>
           <button
             aria-label="Sửa địa chỉ"
-            onClick={onEditAddress}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-secondary hover:bg-surface-container-low transition-colors flex-shrink-0"
+            type="button"
+            onClick={() => setEditingAddress(true)}
+            className="w-11 h-11 flex items-center justify-center rounded-full text-secondary hover:bg-surface-container-low transition-[transform,background-color] duration-150 ease-out active:scale-95 flex-shrink-0"
           >
             <span className="material-symbols-outlined text-[18px]">edit</span>
           </button>
@@ -392,6 +396,10 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
           </div>
         </div>
       </div>
+
+      {editingAddress && (
+        <AddressEditDialog initial={currentAddress} onSave={onAddressChange} onClose={() => setEditingAddress(false)} />
+      )}
     </div>
   );
 };

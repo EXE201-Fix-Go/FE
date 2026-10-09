@@ -4,7 +4,7 @@ import { MapView } from './MapView';
 interface MechanicNavigationProps {
   /** Bấm "Đã tới nơi" — async (ARRIVED → CHECKING). */
   onArrived: () => Promise<void> | void;
-  /** Từ chối/hủy đơn sau khi đối tác đã nhận nhưng chưa hoàn tất. */
+  /** Rút khỏi đơn đã nhận trước khi tới nơi: đơn được chuyển cho thợ khác, khách không bị huỷ. */
   onCancelOrder: () => Promise<void> | void;
   /** Đơn thật đang thực hiện. */
   live: {
@@ -143,7 +143,7 @@ export const MechanicNavigationScreen: React.FC<MechanicNavigationProps> = ({
           className="w-full h-11 rounded-xl border border-error/40 text-error font-label-md font-bold flex items-center justify-center gap-2 active:scale-[0.99] transition-transform"
         >
           <span className="material-symbols-outlined text-[19px]">cancel</span>
-          <span>TỪ CHỐI ĐƠN</span>
+          <span>RÚT KHỎI ĐƠN</span>
         </button>
       </div>
     </div>

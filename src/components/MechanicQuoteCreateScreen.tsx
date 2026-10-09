@@ -400,7 +400,7 @@ export const MechanicQuoteCreateScreen: React.FC<MechanicQuoteCreateProps> = ({
                 className="w-full h-11 rounded-xl border border-error/40 text-error font-label-md font-bold flex items-center justify-center gap-2 active:scale-[0.99] transition-transform"
               >
                 <span className="material-symbols-outlined text-[19px]">cancel</span>
-                <span>TỪ CHỐI ĐƠN</span>
+                <span>HỦY ĐƠN</span>
               </button>
             )}
           </div>

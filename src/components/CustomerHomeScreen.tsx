@@ -93,7 +93,10 @@ export const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = ({
               </button>
             )}
             <button
-              onClick={() => setIsEditingAddress(true)}
+              onClick={() => {
+                setAddressInput(currentAddress);
+                setIsEditingAddress(true);
+              }}
               className="px-space-sm py-1.5 rounded-lg bg-surface-container text-primary font-label-sm text-label-sm font-bold active:scale-95 hover:bg-surface-container-high transition-all"
               type="button"
             >
