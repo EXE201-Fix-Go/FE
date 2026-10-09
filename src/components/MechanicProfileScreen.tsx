@@ -3,6 +3,7 @@ import { PartnerProfile, PartnerStats } from '../api/partner';
 import { ASSETS } from '../data';
 import { formatVND } from '../domain/money';
 import { MechanicBottomNav } from './MechanicBottomNav';
+import { InvitationsCard } from './InvitationsCard';
 
 interface MechanicProfileScreenProps {
   profile: PartnerProfile | null;
@@ -13,6 +14,10 @@ interface MechanicProfileScreenProps {
   onIncome: () => void;
   onReviews: () => void;
   onLogout: () => void;
+  /** Sau khi chấp nhận lời mời vào tiệm (thợ cá nhân → thợ thuộc tiệm). */
+  onJoinedShop: () => void;
+  /** Thợ thuộc tiệm tự rời tiệm. */
+  onLeaveShop: () => void;
 }
 
 function initials(name: string): string {
@@ -32,6 +37,8 @@ export const MechanicProfileScreen: React.FC<MechanicProfileScreenProps> = ({
   onIncome,
   onReviews,
   onLogout,
+  onJoinedShop,
+  onLeaveShop,
 }) => {
   const name = profile?.fullName || displayName || 'Đối tác Fix&Go';
   const accountPhone = profile?.phone || phone || '—';
@@ -125,6 +132,19 @@ export const MechanicProfileScreen: React.FC<MechanicProfileScreenProps> = ({
             </div>
           </div>
         </section>
+
+        {partnerType === 'INDIVIDUAL' && <InvitationsCard onJoined={onJoinedShop} />}
+
+        {partnerType === 'SHOP_STAFF' && (
+          <button
+            type="button"
+            onClick={onLeaveShop}
+            className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl border border-surface-container bg-surface-container-lowest px-6 font-label-md font-bold text-on-surface shadow-sm transition-transform duration-150 ease-out active:scale-[0.98]"
+          >
+            <span className="material-symbols-outlined text-[20px]">logout</span>
+            Rời khỏi tiệm
+          </button>
+        )}
 
         <div className="flex justify-center pb-4 pt-2">
           <button

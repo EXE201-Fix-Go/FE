@@ -1,13 +1,16 @@
 import React from 'react';
 import { AuthUser } from '../api/auth';
+import { InvitationsCard } from './InvitationsCard';
 
 interface CustomerProfileProps {
   onLogout: () => void;
   /** Tài khoản thật đang đăng nhập. */
   user: AuthUser | null;
+  /** Sau khi chấp nhận lời mời vào tiệm: tải lại tài khoản và chuyển sang app Đối tác. */
+  onJoinedShop: () => void;
 }
 
-export const CustomerProfileScreen: React.FC<CustomerProfileProps> = ({ onLogout, user }) => {
+export const CustomerProfileScreen: React.FC<CustomerProfileProps> = ({ onLogout, user, onJoinedShop }) => {
   const name = user?.fullName || 'Khách Fix&Go';
   const contact = user?.phone ?? '';
   return (
@@ -29,6 +32,8 @@ export const CustomerProfileScreen: React.FC<CustomerProfileProps> = ({ onLogout
           </div>
         </div>
       </div>
+
+      <InvitationsCard onJoined={onJoinedShop} />
 
       {/* Đăng xuất */}
       <button
