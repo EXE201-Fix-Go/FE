@@ -8,8 +8,9 @@
  * vì 'localhost' trên điện thoại là chính điện thoại, không phải máy chạy backend.
  */
 function resolveBaseUrl(): string {
+  // `||` chứ không phải `??`: biến repo chưa đặt được CI truyền xuống dưới dạng chuỗi rỗng.
   const configured =
-    (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'https://fixgo-be-cmlq.onrender.com/api/v1';
+    (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || 'https://fixgo-be-cmlq.onrender.com/api/v1';
   try {
     if (typeof window === 'undefined') return configured;
     const url = new URL(configured, window.location.origin);

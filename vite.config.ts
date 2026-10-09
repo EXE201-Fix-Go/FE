@@ -5,8 +5,8 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(({ command }) => {
   return {
-    // Cloudflare Pages phục vụ tại root '/'. Không cần sub-path như GitHub Pages.
-    base: '/',
+    // Mặc định '/' (Cloudflare Pages / tên miền riêng). GitHub Pages dạng dự án: đặt VITE_BASE=/FE/ lúc build.
+    base: process.env.VITE_BASE?.trim() || '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

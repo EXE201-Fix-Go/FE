@@ -28,6 +28,15 @@ jobs:
         run: npm run lint
       - name: Build
         run: npm run build
+        env:
+          # Đặt ở Settings → Secrets and variables → Actions → Variables. Để trống thì dùng mặc định trong code.
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_SUPPORT_PHONE: ${{ vars.VITE_SUPPORT_PHONE }}
+          # '/' khi có tên miền riêng; '/FE/' khi chạy ở https://exe201-fix-go.github.io/FE/
+          VITE_BASE: ${{ vars.VITE_BASE }}
+      - name: SPA fallback for GitHub Pages
+        # Mở thẳng /partner/login (hoặc F5 ở trang con) sẽ ra 404 nếu thiếu tệp này.
+        run: cp dist/index.html dist/404.html
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
