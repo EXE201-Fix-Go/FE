@@ -76,19 +76,21 @@ export const setOnUnauthorized = (fn: () => void): void => {
 
 export interface ApiOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
+  /** Tải file (multipart). Không đặt Content-Type để trình duyệt tự thêm boundary. */
+  form?: FormData;
   auth?: boolean; // mặc định true — tự gắn Bearer token
 }
 
 async function rawFetch(path: string, options: ApiOptions): Promise<Response> {
-  const { body, auth = true, headers, ...rest } = options;
+  const { body, form, auth = true, headers, ...rest } = options;
   return fetch(`${BASE_URL}${path}`, {
     ...rest,
     headers: {
-      'Content-Type': 'application/json',
+      ...(form ? {} : { 'Content-Type': 'application/json' }),
       ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...headers,
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: form ?? (body !== undefined ? JSON.stringify(body) : undefined),
   });
 }
 
@@ -112,7 +114,8 @@ async function tryRefresh(): Promise<boolean> {
   return refreshing;
 }
 
-export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
+/** Gọi API, tự xoay refresh token khi 401 và ném ApiError khi lỗi. Trả về Response thành công để caller đọc theo kiểu mình cần. */
+async function authedFetch(path: string, options: ApiOptions): Promise<Response> {
   let res: Response;
   try {
     res = await rawFetch(path, options);
@@ -138,9 +141,19 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
     const detail = errBody?.fieldErrors ? ' ' + Object.values(errBody.fieldErrors).join('; ') : '';
     throw new ApiError(res.status, (errBody?.message ?? `Yêu cầu thất bại (${res.status}).`) + detail, errBody?.code, errBody);
   }
+  return res;
+}
 
+export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
+  const res = await authedFetch(path, options);
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
+}
+
+/** Tải một file nhị phân (ảnh) cần đăng nhập — vd. giấy tờ KYC cho admin. */
+export async function apiBlob(path: string, options: ApiOptions = {}): Promise<Blob> {
+  const res = await authedFetch(path, { ...options, headers: { Accept: 'image/*', ...options.headers } });
+  return res.blob();
 }
 
 export const apiBaseUrl = BASE_URL;

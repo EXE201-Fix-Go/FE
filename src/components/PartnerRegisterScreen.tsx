@@ -1,6 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useCatalog } from '../catalog/CatalogProvider';
 import { RegisterPartnerInput } from '../api/partner';
+import { uploadKycDocument } from '../api/uploads';
 
 interface PartnerRegisterScreenProps {
   phone?: string;
@@ -10,6 +11,14 @@ interface PartnerRegisterScreenProps {
 }
 
 type DocKey = 'front' | 'back' | 'selfie';
+const DOC_TYPE: Record<DocKey, 'ID_FRONT' | 'ID_BACK' | 'SELFIE'> = { front: 'ID_FRONT', back: 'ID_BACK', selfie: 'SELFIE' };
+const DOC_NAME: Record<DocKey, string> = { front: 'mặt trước CCCD', back: 'mặt sau CCCD', selfie: 'ảnh chân dung' };
+const DOC_ORDER: DocKey[] = ['front', 'back', 'selfie'];
+
+interface PickedDoc {
+  file: File;
+  preview: string;
+}
 
 /** Ô tải ảnh giấy tờ KYC — chụp thật (mobile mở camera), xem trước, đánh dấu đã tải. */
 const DocUpload: React.FC<{
@@ -18,8 +27,9 @@ const DocUpload: React.FC<{
   icon: string;
   shape?: 'card' | 'circle';
   url: string | null;
-  onPick: (url: string) => void;
-}> = ({ label, hint, icon, shape = 'card', url, onPick }) => {
+  error?: string | null;
+  onPick: (file: File) => void;
+}> = ({ label, hint, icon, shape = 'card', url, error, onPick }) => {
   const ref = useRef<HTMLInputElement>(null);
   const box =
     shape === 'circle'
@@ -35,17 +45,20 @@ const DocUpload: React.FC<{
         hidden
         onChange={(e) => {
           const f = e.target.files?.[0];
-          if (f) onPick(URL.createObjectURL(f));
+          if (f) onPick(f);
           e.target.value = '';
         }}
       />
       <button
         type="button"
         onClick={() => ref.current?.click()}
-        className={`relative overflow-hidden border-2 flex flex-col items-center justify-center gap-1 active:scale-[0.98] transition-all ${box} ${
-          url
-            ? 'border-tertiary'
-            : 'border-dashed border-outline-variant bg-surface-container-low'
+        aria-label={url ? `${label}: đã chọn ảnh, chạm để chụp lại` : `${label}: chụp hoặc tải ảnh lên`}
+        className={`relative overflow-hidden border-2 flex flex-col items-center justify-center gap-1 active:scale-[0.97] transition-[transform,border-color] duration-150 ease-out ${box} ${
+          error
+            ? 'border-error'
+            : url
+              ? 'border-tertiary'
+              : 'border-dashed border-outline-variant bg-surface-container-low'
         }`}
       >
         {url ? (
@@ -71,6 +84,11 @@ const DocUpload: React.FC<{
         )}
       </div>
       <span className="text-[11px] text-on-surface-variant">{hint}</span>
+      {error && (
+        <span role="alert" className="text-[11px] font-bold text-error">
+          {error}
+        </span>
+      )}
     </div>
   );
 };
@@ -89,17 +107,36 @@ export const PartnerRegisterScreen: React.FC<PartnerRegisterScreenProps> = ({
   const [area, setArea] = useState('');
   const [shopType, setShopType] = useState<'independent' | 'shop'>('independent');
   const [skills, setSkills] = useState<string[]>([]);
-  const [docs, setDocs] = useState<Record<DocKey, string | null>>({
+  const [docs, setDocs] = useState<Record<DocKey, PickedDoc | null>>({
     front: null,
     back: null,
     selfie: null,
   });
+  const [docError, setDocError] = useState<Partial<Record<DocKey, string>>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  /** Khóa đã tải xong theo từng ảnh: gửi lại sau lỗi mạng không tải lại ảnh đã lên. */
+  const uploaded = useRef<Partial<Record<DocKey, { file: File; key: string }>>>({});
+  const previews = useRef<string[]>([]);
+
+  useEffect(
+    () => () => {
+      previews.current.forEach((u) => URL.revokeObjectURL(u));
+    },
+    []
+  );
 
   const toggleSkill = (id: string) =>
     setSkills((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
-  const setDoc = (k: DocKey, url: string) => setDocs((d) => ({ ...d, [k]: url }));
+  const setDoc = (k: DocKey, file: File) => {
+    const old = docs[k];
+    if (old) URL.revokeObjectURL(old.preview);
+    const preview = URL.createObjectURL(file);
+    previews.current.push(preview);
+    setDocs((d) => ({ ...d, [k]: { file, preview } }));
+    setDocError((e) => ({ ...e, [k]: undefined }));
+  };
 
   const stepInfo = !!name.trim() && !!area.trim();
   const stepDocs = !!docs.front && !!docs.back;
@@ -112,17 +149,33 @@ export const PartnerRegisterScreen: React.FC<PartnerRegisterScreenProps> = ({
     setSubmitting(true);
     setError(null);
     try {
-      // Ảnh KYC: prototype chưa upload — gửi khóa lưu trữ tạm (app thật đẩy lên private storage, BRD §8).
+      // Ảnh KYC lên kho RIÊNG TƯ của backend; chỉ khóa trả về mới được gửi kèm hồ sơ (BR06).
+      const keys: Partial<Record<DocKey, string>> = {};
+      let done = 0;
+      setProgress(0);
+      for (const k of DOC_ORDER) {
+        const picked = docs[k]!;
+        const cached = uploaded.current[k];
+        if (cached && cached.file === picked.file) {
+          keys[k] = cached.key;
+        } else {
+          try {
+            const key = await uploadKycDocument(picked.file);
+            uploaded.current[k] = { file: picked.file, key };
+            keys[k] = key;
+          } catch (e: unknown) {
+            setDocError((er) => ({ ...er, [k]: `Không tải được ${DOC_NAME[k]}. Kiểm tra mạng rồi thử lại.` }));
+            throw e;
+          }
+        }
+        setProgress(++done);
+      }
       await onSubmitted({
         fullName: name.trim(),
         partnerType: shopType === 'shop' ? 'SHOP' : 'INDIVIDUAL',
         shopName: shopType === 'shop' ? `Tiệm của ${name.trim()}` : undefined,
         serviceCodes: skills,
-        documents: [
-          { documentType: 'ID_FRONT', storageKey: `kyc/${phone ?? 'unknown'}/front.jpg` },
-          { documentType: 'ID_BACK', storageKey: `kyc/${phone ?? 'unknown'}/back.jpg` },
-          { documentType: 'SELFIE', storageKey: `kyc/${phone ?? 'unknown'}/selfie.jpg` },
-        ],
+        documents: DOC_ORDER.map((k) => ({ documentType: DOC_TYPE[k], storageKey: keys[k]! })),
       });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Không gửi được hồ sơ.');
@@ -213,7 +266,7 @@ export const PartnerRegisterScreen: React.FC<PartnerRegisterScreenProps> = ({
 
           <div className="flex items-center justify-between bg-tertiary-container/10 border border-tertiary/30 rounded-xl px-3 h-11">
             <span className="text-[13px] text-on-surface">
-              SĐT: <strong>{phone || '0908 123 456'}</strong>
+              SĐT: <strong>{phone ?? '—'}</strong>
             </span>
             <span className="text-[11px] font-bold text-tertiary flex items-center gap-0.5">
               <span className="material-symbols-outlined text-[16px]">verified</span>Đã xác minh OTP
@@ -265,15 +318,17 @@ export const PartnerRegisterScreen: React.FC<PartnerRegisterScreenProps> = ({
               label="Mặt trước"
               hint="Mặt có ảnh và số CCCD"
               icon="id_card"
-              url={docs.front}
-              onPick={(u) => setDoc('front', u)}
+              url={docs.front?.preview ?? null}
+              error={docError.front}
+              onPick={(f) => setDoc('front', f)}
             />
             <DocUpload
               label="Mặt sau"
               hint="Mặt có đặc điểm nhận dạng"
               icon="flip_camera_android"
-              url={docs.back}
-              onPick={(u) => setDoc('back', u)}
+              url={docs.back?.preview ?? null}
+              error={docError.back}
+              onPick={(f) => setDoc('back', f)}
             />
           </div>
           <div className="border-t border-surface-container pt-space-md">
@@ -282,8 +337,9 @@ export const PartnerRegisterScreen: React.FC<PartnerRegisterScreenProps> = ({
               hint="Selfie rõ mặt, không đeo khẩu trang — dùng để đối chiếu CCCD."
               icon="face"
               shape="circle"
-              url={docs.selfie}
-              onPick={(u) => setDoc('selfie', u)}
+              url={docs.selfie?.preview ?? null}
+              error={docError.selfie}
+              onPick={(f) => setDoc('selfie', f)}
             />
           </div>
         </section>
@@ -323,6 +379,12 @@ export const PartnerRegisterScreen: React.FC<PartnerRegisterScreenProps> = ({
           </p>
         </div>
 
+        {error && (
+          <p role="alert" className="rounded-xl bg-error-container px-3 py-2 text-[13px] font-bold text-error">
+            {error}
+          </p>
+        )}
+
         {/* CTA */}
         <button
           type="button"
@@ -330,14 +392,14 @@ export const PartnerRegisterScreen: React.FC<PartnerRegisterScreenProps> = ({
           onClick={submit}
           className={`w-full min-h-[56px] rounded-2xl font-label-lg uppercase tracking-wide flex items-center justify-center gap-space-sm shadow-md transition-all ${
             canSubmit
-              ? 'bg-tertiary hover:bg-tertiary-container text-on-tertiary active:translate-y-0.5'
+              ? 'bg-tertiary hover:bg-tertiary-container text-on-tertiary active:scale-[0.98]'
               : 'bg-surface-container-highest text-on-surface-variant/50 cursor-not-allowed'
           }`}
         >
           {submitting ? (
             <>
               <span className="inline-block w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              Đang gửi hồ sơ…
+              {progress < 3 ? `Đang tải ảnh ${Math.min(progress + 1, 3)}/3…` : 'Đang gửi hồ sơ…'}
             </>
           ) : (
             <>
