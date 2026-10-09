@@ -161,9 +161,11 @@ export const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = ({
                 <span className="material-symbols-outlined text-tertiary-fixed-dim text-[18px]">electric_moped</span>
                 <span className="font-label-sm text-[12px] font-bold">Vị trí của bạn trên bản đồ</span>
               </div>
-              <span className="font-label-sm text-[11px] bg-tertiary-container text-on-tertiary-container px-2 py-0.5 rounded-full font-bold shadow-sm">
-                Định vị GPS
-              </span>
+              {coords && (
+                <span className="font-label-sm text-[11px] bg-tertiary-container text-on-tertiary-container px-2 py-0.5 rounded-full font-bold shadow-sm">
+                  Định vị GPS
+                </span>
+              )}
             </div>
           </div>
         </div>

@@ -184,7 +184,7 @@ export const CustomerRadarSearchingScreen: React.FC<CustomerRadarSearchingProps>
               <span className="font-data-metric-md text-[20px] text-on-surface font-bold">
                 {callOutFee != null ? formatVND(callOutFee) : '—'}
               </span>
-              <p className="font-label-sm text-[11px] text-tertiary font-bold">Phí xuất phát cố định</p>
+              <p className="font-label-sm text-[11px] text-tertiary font-bold">Phí xuất phát</p>
             </div>
           </div>
 
@@ -208,7 +208,7 @@ export const CustomerRadarSearchingScreen: React.FC<CustomerRadarSearchingProps>
                 verified
               </span>
               <span className="font-label-sm text-[11px] font-semibold">
-                Báo giá minh bạch, không phụ phí
+                Báo giá minh bạch trước khi sửa
               </span>
             </div>
             <span className="font-label-sm text-[11px] text-secondary">Fix&amp;Go Care</span>
