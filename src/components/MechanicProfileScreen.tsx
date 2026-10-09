@@ -7,7 +7,6 @@ import { MechanicBottomNav } from './MechanicBottomNav';
 interface MechanicProfileScreenProps {
   profile: PartnerProfile | null;
   stats: PartnerStats | null;
-  live: boolean;
   displayName?: string | null;
   phone?: string | null;
   onRescue: () => void;
@@ -27,7 +26,6 @@ function initials(name: string): string {
 export const MechanicProfileScreen: React.FC<MechanicProfileScreenProps> = ({
   profile,
   stats,
-  live,
   displayName,
   phone,
   onRescue,
@@ -35,15 +33,15 @@ export const MechanicProfileScreen: React.FC<MechanicProfileScreenProps> = ({
   onReviews,
   onLogout,
 }) => {
-  const name = profile?.fullName || displayName || 'Nguyễn Văn Tuấn';
-  const accountPhone = profile?.phone || phone || '090 812 3456';
+  const name = profile?.fullName || displayName || 'Đối tác Fix&Go';
+  const accountPhone = profile?.phone || phone || '—';
   const partnerType = profile?.partnerType;
   const roleLabel = partnerType === 'SHOP'
     ? 'Chủ tiệm'
     : partnerType === 'SHOP_STAFF'
       ? 'Thợ thuộc tiệm'
       : 'Thợ cá nhân';
-  const shopLabel = profile?.shopName || (partnerType === 'SHOP' ? 'Tiệm sửa xe của tôi' : 'Đội 1 · Q.1');
+  const shopLabel = profile?.shopName || (partnerType === 'SHOP' ? 'Tiệm sửa xe' : 'Fix&Go');
   const isOnline = profile?.availability === 'ONLINE';
   const verificationLabel = profile?.verificationStatus === 'PENDING'
     ? 'Đang chờ duyệt'
@@ -93,17 +91,17 @@ export const MechanicProfileScreen: React.FC<MechanicProfileScreenProps> = ({
         <section className="grid grid-cols-3 gap-2">
           <div className="rounded-2xl border border-surface-container bg-surface-container-lowest p-3 text-center shadow-sm">
             <span className="material-symbols-outlined text-[22px] text-primary">star</span>
-            <p className="mt-2 font-headline-md text-on-surface">{live ? stats?.averageRating?.toFixed(1) || '--' : '4.9'}</p>
+            <p className="mt-2 font-headline-md text-on-surface">{stats?.averageRating?.toFixed(1) || '--'}</p>
             <p className="mt-0.5 font-body-sm text-secondary">Đánh giá</p>
           </div>
           <div className="rounded-2xl border border-surface-container bg-surface-container-lowest p-3 text-center shadow-sm">
             <span className="material-symbols-outlined text-[22px] text-tertiary">task_alt</span>
-            <p className="mt-2 font-headline-md text-on-surface">{live ? stats?.completedTotal ?? 0 : 128}</p>
+            <p className="mt-2 font-headline-md text-on-surface">{stats?.completedTotal ?? 0}</p>
             <p className="mt-0.5 font-body-sm text-secondary">Cuốc hoàn tất</p>
           </div>
           <div className="rounded-2xl border border-surface-container bg-surface-container-lowest p-3 text-center shadow-sm">
             <span className="material-symbols-outlined text-[22px] text-primary">payments</span>
-            <p className="mt-2 truncate font-label-md text-on-surface">{live ? formatVND(stats?.earnedToday ?? 0) : '480.000 ₫'}</p>
+            <p className="mt-2 truncate font-label-md text-on-surface">{formatVND(stats?.earnedToday ?? 0)}</p>
             <p className="mt-0.5 font-body-sm text-secondary">Hôm nay</p>
           </div>
         </section>
@@ -123,13 +121,6 @@ export const MechanicProfileScreen: React.FC<MechanicProfileScreenProps> = ({
               <div className="min-w-0 flex-1">
                 <p className="font-body-sm text-secondary">Loại tài khoản</p>
                 <p className="mt-0.5 font-label-md text-on-surface">{roleLabel}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 py-3 last:pb-1">
-              <span className="material-symbols-outlined text-[21px] text-secondary">location_on</span>
-              <div className="min-w-0 flex-1">
-                <p className="font-body-sm text-secondary">Khu vực hoạt động</p>
-                <p className="mt-0.5 font-label-md text-on-surface">Quận 1, TP. Hồ Chí Minh</p>
               </div>
             </div>
           </div>

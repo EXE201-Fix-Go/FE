@@ -39,20 +39,6 @@ export interface ServiceItem {
   icon: string;
 }
 
-export interface MechanicInfo {
-  name: string;
-  rating: number;
-  ratingCount: number;
-  completedJobs: number;
-  vehicle: string;
-  licensePlate: string;
-  team: string;
-  phone: string;
-  avatar: string;
-  distance: string;
-  eta: string;
-}
-
 export interface QuoteItem {
   id: string;
   title: string;

@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { DEFAULT_MECHANIC } from '../data';
+import { formatVND } from '../domain/money';
 import { ServiceItem } from '../types';
 
 interface CustomerRadarSearchingProps {
   service: ServiceItem;
   address: string;
   onCancel: () => void;
-  /** Chỉ dùng ở chế độ demo; khi nối backend, App tự chuyển màn theo trạng thái đơn. */
-  onMechanicMatched?: () => void;
+  /** Phí xuất phát đã chốt trên đơn (callOutFee của BE). */
+  callOutFee?: number | null;
   /** Mã đơn thật + dòng trạng thái từ backend (đang phát tín hiệu vòng mấy…). */
   orderCode?: string;
   statusText?: string;
@@ -17,7 +17,7 @@ export const CustomerRadarSearchingScreen: React.FC<CustomerRadarSearchingProps>
   service,
   address,
   onCancel,
-  onMechanicMatched,
+  callOutFee,
   orderCode,
   statusText,
 }) => {
@@ -26,10 +26,9 @@ export const CustomerRadarSearchingScreen: React.FC<CustomerRadarSearchingProps>
   const [showCancelModal, setShowCancelModal] = useState(false);
 
   const messages = [
-    'Đã gửi tín hiệu cứu hộ tới các thợ trong bán kính 2km...',
-    'Thợ Nguyễn Văn Tuấn (cách 450m) đang xem yêu cầu...',
-    'Ưu tiên kết nối trạm sửa chữa gần nhất tại Quận 1...',
-    'Thời gian phản hồi dự kiến: dưới 60 giây',
+    'Đã gửi tín hiệu cứu hộ tới các thợ gần vị trí của bạn...',
+    'Nếu chưa ai nhận, hệ thống tự mở rộng bán kính tìm thợ...',
+    'Bạn có thể hủy bất cứ lúc nào trước khi thợ tới nơi.',
   ];
 
   useEffect(() => {
@@ -93,60 +92,6 @@ export const CustomerRadarSearchingScreen: React.FC<CustomerRadarSearchingProps>
           <div className="absolute w-44 h-44 rounded-full border border-white/10"></div>
           <div className="absolute w-24 h-24 rounded-full border border-white/15"></div>
 
-          {/* Mechanic 1: Phía Tây Bắc (600m) */}
-          <div
-            className="absolute -top-1 left-16 flex flex-col items-center animate-pulse"
-            style={{ animationDuration: '2s' }}
-          >
-            <div className="w-8 h-8 rounded-full bg-tertiary text-on-tertiary flex items-center justify-center shadow-md">
-              <span className="material-symbols-outlined text-[16px]">two_wheeler</span>
-            </div>
-            <span className="mt-0.5 px-1.5 py-0.5 rounded-full bg-inverse-surface/90 text-[10px] font-label-sm text-tertiary-fixed font-bold leading-tight">
-              600m
-            </span>
-          </div>
-
-          {/* Mechanic 2: Phía Đông Bắc (1.1km) */}
-          <div
-            className="absolute top-8 right-8 flex flex-col items-center animate-pulse"
-            style={{ animationDuration: '2.4s', animationDelay: '0.4s' }}
-          >
-            <div className="w-8 h-8 rounded-full bg-tertiary text-on-tertiary flex items-center justify-center shadow-md">
-              <span className="material-symbols-outlined text-[16px]">two_wheeler</span>
-            </div>
-            <span className="mt-0.5 px-1.5 py-0.5 rounded-full bg-inverse-surface/90 text-[10px] font-label-sm text-tertiary-fixed font-bold leading-tight">
-              1.1km
-            </span>
-          </div>
-
-          {/* Mechanic 3: Phía Nam (450m - Đang xem yêu cầu) */}
-          <div
-            className="absolute bottom-4 left-14 flex flex-col items-center animate-pulse cursor-pointer"
-            style={{ animationDuration: '1.8s', animationDelay: '0.9s' }}
-            onClick={onMechanicMatched}
-            title={onMechanicMatched ? 'Bấm để kết nối ngay với thợ Tuấn' : undefined}
-          >
-            <div className="w-8 h-8 rounded-full bg-tertiary-container text-on-tertiary-container flex items-center justify-center shadow-md ring-2 ring-tertiary-fixed">
-              <span className="material-symbols-outlined text-[16px]">two_wheeler</span>
-            </div>
-            <span className="mt-0.5 px-1.5 py-0.5 rounded-full bg-inverse-surface/90 text-[10px] font-label-sm text-tertiary-fixed font-bold leading-tight">
-              450m
-            </span>
-          </div>
-
-          {/* Mechanic 4: Phía Đông Nam (1.4km) */}
-          <div
-            className="absolute bottom-10 right-12 flex flex-col items-center animate-pulse"
-            style={{ animationDuration: '2.6s', animationDelay: '1.2s' }}
-          >
-            <div className="w-7 h-7 rounded-full bg-tertiary/80 text-on-tertiary flex items-center justify-center shadow-sm">
-              <span className="material-symbols-outlined text-[14px]">two_wheeler</span>
-            </div>
-            <span className="mt-0.5 px-1 py-0.5 rounded-full bg-inverse-surface/90 text-[9px] font-label-sm text-tertiary-fixed font-bold leading-tight">
-              1.4km
-            </span>
-          </div>
-
           {/* Center User Beacon Marker */}
           <div className="relative z-10 flex flex-col items-center">
             <div className="relative w-16 h-16 rounded-full bg-primary flex items-center justify-center shadow-[0_0_24px_rgba(163,57,0,0.6)]">
@@ -171,32 +116,20 @@ export const CustomerRadarSearchingScreen: React.FC<CustomerRadarSearchingProps>
         <div className="relative z-10 mt-space-sm flex items-center gap-space-xs px-space-md py-2 rounded-full bg-surface-container-lowest/15 backdrop-blur-md">
           <span className="w-2 h-2 rounded-full bg-tertiary-fixed-dim animate-ping"></span>
           <span className="font-label-sm text-[12px] text-on-tertiary-container">
-            Đang kết nối 4 thợ gần nhất
+            Đang tìm thợ gần bạn
           </span>
         </div>
       </div>
 
       {/* Content & Control Deck */}
       <div className="px-gutter -mt-4 relative z-20 flex flex-col gap-space-md">
-        {onMechanicMatched ? (
-          /* Demo: bấm để giả lập có thợ nhận */
-          <button
-            onClick={onMechanicMatched}
-            className="w-full py-3 px-3 rounded-xl bg-tertiary text-on-tertiary font-label-sm text-[13px] leading-snug font-bold flex items-center justify-center gap-2 shadow-md active:scale-98 transition-transform"
-          >
-            <span className="material-symbols-outlined text-[18px]">verified</span>
-            <span>Thợ Nguyễn Văn Tuấn (450m) vừa nhận đơn! Bấm để xem trực tiếp →</span>
-          </button>
-        ) : (
-          /* Live: trạng thái thật từ backend */
-          <div className="w-full py-3 px-[15px] rounded-xl bg-surface-container-lowest shadow-sm flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="material-symbols-outlined text-[20px] text-primary animate-pulse">cell_tower</span>
-              <span className="font-body-sm text-on-surface-variant truncate">{statusText ?? 'Đang phát tín hiệu tới thợ gần bạn…'}</span>
-            </div>
-            {orderCode && <span className="font-label-sm text-secondary shrink-0">{orderCode}</span>}
+        <div className="w-full py-3 px-[15px] rounded-xl bg-surface-container-lowest shadow-sm flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="material-symbols-outlined text-[20px] text-primary animate-pulse">cell_tower</span>
+            <span className="font-body-sm text-on-surface-variant truncate">{statusText ?? 'Đang phát tín hiệu tới thợ gần bạn…'}</span>
           </div>
-        )}
+          {orderCode && <span className="font-label-sm text-secondary shrink-0">{orderCode}</span>}
+        </div>
 
         {/* Timer & Live Reassurance Counter Card */}
         <div className="rounded-xl bg-surface-container-lowest p-space-md shadow-md flex items-center justify-between border border-surface-container">
@@ -210,14 +143,6 @@ export const CustomerRadarSearchingScreen: React.FC<CustomerRadarSearchingProps>
               </span>
               <span className="font-label-sm text-secondary">giây</span>
             </div>
-          </div>
-          <div className="flex flex-col items-end text-right">
-            <span className="font-label-sm text-[11px] text-on-secondary-container uppercase">
-              Thời gian phản hồi
-            </span>
-            <span className="font-headline-md text-headline-md text-tertiary mt-0.5 font-bold">
-              &lt; 60 giây
-            </span>
           </div>
         </div>
 
@@ -233,9 +158,6 @@ export const CustomerRadarSearchingScreen: React.FC<CustomerRadarSearchingProps>
             <p className="font-body-sm text-[13.5px] text-on-surface font-medium transition-all duration-300">
               {messages[tickerIndex]}
             </p>
-            <span className="font-label-sm text-[11px] text-on-secondary-container mt-1">
-              Đội cứu hộ Fix&amp;Go hoạt động 24/7 tại Quận 1
-            </span>
           </div>
         </div>
 
@@ -257,12 +179,11 @@ export const CustomerRadarSearchingScreen: React.FC<CustomerRadarSearchingProps>
               <p className="font-body-md text-body-md text-on-surface font-semibold truncate">
                 {service.name}
               </p>
-              <p className="font-body-sm text-[12px] text-secondary truncate mt-0.5">
-                Xe Honda Air Blade • 59-P1 888.88
-              </p>
             </div>
             <div className="text-right flex-shrink-0 pl-space-sm">
-              <span className="font-data-metric-md text-[20px] text-on-surface font-bold">30.000 ₫</span>
+              <span className="font-data-metric-md text-[20px] text-on-surface font-bold">
+                {callOutFee != null ? formatVND(callOutFee) : '—'}
+              </span>
               <p className="font-label-sm text-[11px] text-tertiary font-bold">Phí xuất phát cố định</p>
             </div>
           </div>
@@ -304,13 +225,6 @@ export const CustomerRadarSearchingScreen: React.FC<CustomerRadarSearchingProps>
             <span className="material-symbols-outlined text-[20px] text-secondary">close</span>
             <span>Hủy tìm kiếm cứu hộ</span>
           </button>
-          <p className="font-label-sm text-[12px] text-secondary text-center">
-            Cần trợ giúp thoại ngay? Gọi{' '}
-            <a className="text-primary font-bold underline" href="tel:19006868">
-              1900 6868
-            </a>{' '}
-            (Miễn cước)
-          </p>
         </div>
       </div>
 

@@ -22,10 +22,10 @@ import { PartnerRegisterScreen } from './components/PartnerRegisterScreen';
 import { ShopOwnerScreen } from './components/ShopOwnerScreen';
 import { AdminApp } from './admin/AdminApp';
 import { NotificationHost, confirmDialog, toast } from './components/notify';
-import { SERVICES } from './data';
+import { useCatalog } from './catalog/CatalogProvider';
 import { EntryDestination, ScreenId, ServiceItem, UserRole } from './types';
 import { requestOtp, verifyOtp, logout, me, AppRole, AuthUser } from './api/auth';
-import { ApiError, apiConfigured, setOnUnauthorized, setTokens, hasStoredSession } from './api/client';
+import { ApiError, setOnUnauthorized, setTokens, hasStoredSession } from './api/client';
 import {
   Order, createOrder, confirmOrder, getOrder, getOrderStatus, cancelOrder, approveQuote, declineQuote, submitReview,
 } from './api/orders';
@@ -120,22 +120,13 @@ function customerScreenFor(o: Order): ScreenId | null {
 }
 
 export default function App() {
-  // Deep-link cho dev/QA: ?screen=<id> nhảy thẳng tới một màn (bỏ qua đăng nhập, dữ liệu mẫu).
-  const params =
-    typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
-  const startScreen = params.get('screen') as ScreenId | null;
   const entryRoute = getEntryRoute();
-  const initialRole: UserRole =
-    startScreen &&
-    (startScreen.startsWith('mechanic_') || startScreen === 'shop_owner' || startScreen === 'partner_register')
-      ? 'mechanic'
-      : entryRoute.dest === 'customer'
-        ? 'customer'
-        : 'mechanic';
+  const initialRole: UserRole = entryRoute.dest === 'customer' ? 'customer' : 'mechanic';
 
-  const [activeScreen, setActiveScreen] = useState<ScreenId>(startScreen ?? 'customer_home');
-  const [selectedService, setSelectedService] = useState<ServiceItem>(SERVICES[0]);
-  const [currentAddress, setCurrentAddress] = useState<string>('Cổng KTX khu B, Làng Đại học, Thủ Đức');
+  const [activeScreen, setActiveScreen] = useState<ScreenId>('customer_home');
+  const { services } = useCatalog();
+  const [selectedService, setSelectedService] = useState<ServiceItem | null>(null);
+  const [currentAddress, setCurrentAddress] = useState<string>('');
 
   // ── Vị trí GPS thật ───────────────────────────────────────────────
   const [coords, setCoords] = useState<Coords | null>(null);
@@ -156,7 +147,7 @@ export default function App() {
   /** Định vị + đổi tên "Vị trí hiện tại" theo GPS thật (reverse geocode). Dùng cho luồng khách. */
   const locateAndName = useCallback(async () => {
     const { coords: c, real } = await locate();
-    if (!real) return; // bị từ chối → giữ địa chỉ hiện tại, không đặt tên theo vị trí mẫu
+    if (!real) return; // bị từ chối → giữ địa chỉ hiện tại, không đặt tên theo vị trí dự phòng
     const name = await reverseGeocode(c.lat, c.lng);
     if (name) setCurrentAddress(name);
   }, [locate]);
@@ -167,19 +158,18 @@ export default function App() {
   }, [activeScreen, locationStatus, locateAndName]);
 
   // ── Trạng thái đăng nhập ──────────────────────────────────────────
-  const [authed, setAuthed] = useState<boolean>(!!startScreen);
+  const [authed, setAuthed] = useState<boolean>(false);
   const [authStep, setAuthStep] = useState<AuthStep>('phone');
   const [phone, setPhone] = useState<string>('');
   const [otp, setOtp] = useState<{ otpId: string; devCode?: string | null } | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [role, setRole] = useState<UserRole>(initialRole);
   const [pendingDest, setPendingDest] = useState<EntryDestination>(entryRoute.dest);
-  const live = !startScreen && apiConfigured; // deep-link hoặc build không có backend = chế độ demo
 
   // ── Ghi nhớ đăng nhập: khôi phục phiên từ refresh token đã lưu ─────
-  const [restoring, setRestoring] = useState<boolean>(() => live && hasStoredSession());
+  const [restoring, setRestoring] = useState<boolean>(() => hasStoredSession());
   useEffect(() => {
-    if (!live || authed || !hasStoredSession()) {
+    if (authed || !hasStoredSession()) {
       setRestoring(false);
       return;
     }
@@ -270,11 +260,6 @@ export default function App() {
   // Bước 1: nhập SĐT → backend gửi OTP (dev: trả devCode)
   const handlePhoneSubmit = async (p: string) => {
     setPhone(p);
-    if (!live) {
-      setOtp({ otpId: 'demo', devCode: '123456' });
-      setAuthStep('otp');
-      return;
-    }
     const res = await requestOtp(p);   // lỗi (429 quá số lần, mạng…) hiện ngay trên màn SĐT
     setOtp({ otpId: res.otpId, devCode: res.devCode });
     setAuthStep('otp');
@@ -316,21 +301,6 @@ export default function App() {
 
   const handleVerify = async (code: string) => {
     if (!otp) throw new Error('Chưa gửi OTP.');
-    if (!live) {
-      // Demo: vào đúng app theo vai trò đã chọn, dữ liệu mẫu
-      const demoRole: AppRole =
-        pendingDest === 'customer'
-          ? 'CUSTOMER'
-          : pendingDest === 'shop'
-            ? 'P_SHOP'
-            : pendingDest === 'staff'
-              ? 'P_STAFF'
-              : pendingDest === 'register'
-                ? 'CUSTOMER'
-                : 'P_IND';
-      routeAfterAuth(demoRole);
-      return;
-    }
     const res = await verifyOtp(otp.otpId, code);
     setUser(res.user);
     routeAfterAuth(res.role);
@@ -341,7 +311,7 @@ export default function App() {
   // ── Khách: poll đơn đang theo dõi và tự chuyển màn ────────────────
   const lastNotified = useRef<string | null>(null);
   useEffect(() => {
-    if (!live || !currentOrder || !CUSTOMER_WATCH_SCREENS.includes(activeScreen)) return;
+    if (!currentOrder || !CUSTOMER_WATCH_SCREENS.includes(activeScreen)) return;
     let inFlight = false;
     const id = setInterval(async () => {
       if (document.hidden) return; // tab bị ẩn → ngừng bắn request (tiết kiệm mạng/pin)
@@ -373,9 +343,10 @@ export default function App() {
       }
     }, POLL_MS);
     return () => clearInterval(id);
-  }, [live, currentOrder?.id, currentOrder?.status, activeScreen]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentOrder?.id, currentOrder?.status, activeScreen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const placeOrder = async (note: string, extraServiceIds: string[], photos: File[]) => {
+    if (!selectedService) throw new Error('Chưa chọn dịch vụ.');
     // Ảnh hiện trường lên máy chủ trước (BR05), rồi mới tạo đơn với URL thật để thợ xem được.
     const photoUrls = await Promise.all(photos.map(uploadPhoto));
     const created = await createOrder({
@@ -426,12 +397,10 @@ export default function App() {
   const openOrderDetail = async (o: Order) => {
     setDetailOrder(o);
     setActiveScreen('customer_order_detail');
-    if (apiConfigured) {
-      try {
-        setDetailOrder(await getOrder(o.id));
-      } catch {
-        /* giữ bản đã có trong danh sách */
-      }
+    try {
+      setDetailOrder(await getOrder(o.id));
+    } catch {
+      /* giữ bản đã có trong danh sách */
     }
   };
 
@@ -461,11 +430,10 @@ export default function App() {
 
   useEffect(() => {
     if (
-      !live ||
-      (activeScreen !== 'mechanic_dashboard' &&
-        activeScreen !== 'mechanic_income' &&
-        activeScreen !== 'mechanic_reviews' &&
-        activeScreen !== 'mechanic_profile')
+      activeScreen !== 'mechanic_dashboard' &&
+      activeScreen !== 'mechanic_income' &&
+      activeScreen !== 'mechanic_reviews' &&
+      activeScreen !== 'mechanic_profile'
     ) return;
     let cancelled = false;
     partnerInFlight.current = false;   // vừa quay về dashboard: làm mới ngay, không chờ request cũ
@@ -494,7 +462,7 @@ export default function App() {
       clearInterval(id);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [live, activeScreen, refreshPartner]);
+  }, [activeScreen, refreshPartner]);
 
   const openJob = async (job: Offer) => {
     const o = await getOrder(job.orderId);
@@ -517,11 +485,9 @@ export default function App() {
     if (!confirmed) return;
 
     try {
-      if (live && activeOrder) {
+      if (activeOrder) {
         await cancelOrder(activeOrder.id, 'Đối tác từ chối đơn sau khi đã nhận');
         await refreshPartner();
-      } else {
-        toast('Đã từ chối đơn.', 'success');
       }
       setActiveOrder(null);
       setActiveScreen('mechanic_dashboard');
@@ -532,7 +498,7 @@ export default function App() {
 
   // Thợ ở màn báo giá: poll để biết khách đã duyệt chưa
   useEffect(() => {
-    if (!live || !activeOrder || activeScreen !== 'mechanic_quote_create') return;
+    if (!activeOrder || activeScreen !== 'mechanic_quote_create') return;
     let inFlight = false;
     const id = setInterval(async () => {
       if (document.hidden) return; // tab ẩn → ngừng poll báo giá
@@ -554,7 +520,7 @@ export default function App() {
       }
     }, POLL_MS);
     return () => clearInterval(id);
-  }, [live, activeOrder?.id, activeOrder?.status, activeScreen]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeOrder?.id, activeOrder?.status, activeScreen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Đang khôi phục phiên đã ghi nhớ → splash nhẹ, tránh nháy màn đăng nhập.
   if (restoring) {
@@ -585,7 +551,6 @@ export default function App() {
             onBack={() => setAuthStep('phone')}
             onVerify={handleVerify}
             onResend={async () => {
-              if (!live) return;
               const res = await requestOtp(phone);
               setOtp({ otpId: res.otpId, devCode: res.devCode });
             }}
@@ -631,7 +596,7 @@ export default function App() {
     activeScreen === 'customer_home' || activeScreen === 'customer_history' || activeScreen === 'customer_profile';
 
   const trackingLive =
-    live && currentOrder
+    currentOrder
       ? {
           orderCode: currentOrder.orderCode,
           status: currentOrder.status,
@@ -685,7 +650,7 @@ export default function App() {
           />
         )}
 
-        {activeScreen === 'customer_confirm_request' && (
+        {activeScreen === 'customer_confirm_request' && selectedService && (
           <CustomerConfirmRequestScreen
             selectedService={selectedService}
             currentAddress={currentAddress}
@@ -694,13 +659,7 @@ export default function App() {
             onLocate={() => void locateAndName()}
             isLocating={locationStatus === 'locating'}
             onBack={() => setActiveScreen('customer_home')}
-            onConfirmDispatch={
-              live
-                ? placeOrder
-                : async () => {
-                    setActiveScreen('customer_radar_searching');
-                  }
-            }
+            onConfirmDispatch={placeOrder}
             onChangeService={() => setActiveScreen('customer_home')}
             onEditAddress={() => {
               const newAddr = prompt('Chỉnh sửa địa chỉ:', currentAddress);
@@ -709,12 +668,12 @@ export default function App() {
           />
         )}
 
-        {activeScreen === 'customer_radar_searching' && (
+        {activeScreen === 'customer_radar_searching' && currentOrder && (
           <CustomerRadarSearchingScreen
-            service={selectedService}
-            address={currentAddress}
-            onCancel={() => (live ? cancelCurrent('Khách hủy khi đang tìm thợ') : setActiveScreen('customer_home'))}
-            onMechanicMatched={live ? undefined : () => setActiveScreen('customer_tracking')}
+            service={selectedService ?? { id: currentOrder.serviceId, name: currentOrder.serviceName, desc: '', price: 0, priceDisplay: '', icon: 'build' }}
+            address={currentOrder.addressText}
+            callOutFee={currentOrder.callOutFee}
+            onCancel={() => cancelCurrent('Khách hủy khi đang tìm thợ')}
             orderCode={currentOrder?.orderCode}
             statusText={
               currentOrder
@@ -724,29 +683,29 @@ export default function App() {
           />
         )}
 
-        {activeScreen === 'customer_tracking' && (
+        {activeScreen === 'customer_tracking' && trackingLive && (
           <CustomerTrackingScreen
-            onArrivedAndQuote={live ? undefined : () => setActiveScreen('customer_quote_review')}
-            onCancel={() => (live ? cancelCurrent('Khách hủy chuyến') : setActiveScreen('customer_home'))}
+            onCancel={() => cancelCurrent('Khách hủy chuyến')}
             live={trackingLive}
           />
         )}
 
-        {activeScreen === 'customer_quote_review' && (
+        {activeScreen === 'customer_quote_review' && currentOrder?.quote && (
           <CustomerQuoteReviewScreen
-            quote={live ? currentOrder?.quote : undefined}
-            orderCode={currentOrder?.orderCode}
-            mechanicName={currentOrder?.partner?.fullName}
+            quote={currentOrder.quote}
+            orderCode={currentOrder.orderCode}
+            mechanicName={currentOrder.partner?.fullName}
             onAccept={async () => {
-              if (live && currentOrder?.quote) {
-                await approveQuote(currentOrder.id, currentOrder.quote.id);
-                setCurrentOrder(await getOrder(currentOrder.id));
-                setActiveScreen('customer_tracking');
-              } else setActiveScreen('customer_completed');
+              const quote = currentOrder.quote;
+              if (!quote) return;
+              await approveQuote(currentOrder.id, quote.id);
+              setCurrentOrder(await getOrder(currentOrder.id));
+              setActiveScreen('customer_tracking');
             }}
             onDecline={async () => {
-              if (live && currentOrder?.quote) {
-                await declineQuote(currentOrder.id, currentOrder.quote.id, 'Khách từ chối báo giá');
+              const quote = currentOrder.quote;
+              if (quote) {
+                await declineQuote(currentOrder.id, quote.id, 'Khách từ chối báo giá');
                 setCurrentOrder(await getOrder(currentOrder.id));
               }
               setActiveScreen('customer_home');
@@ -754,18 +713,13 @@ export default function App() {
           />
         )}
 
-        {activeScreen === 'customer_completed' && (
+        {activeScreen === 'customer_completed' && currentOrder && (
           <CustomerCompletedScreen
-            order={live ? currentOrder : undefined}
-            onSubmitReview={
-              live && currentOrder
-                ? async (rating, feedback) => {
-                    await submitReview(currentOrder.id, rating, feedback);
-                  }
-                : undefined
-            }
+            order={currentOrder}
+            onSubmitReview={async (rating, feedback) => {
+              await submitReview(currentOrder.id, rating, feedback);
+            }}
             onBackToHome={() => setActiveScreen('customer_home')}
-            onViewWarranty={() => setActiveScreen('customer_history')}
           />
         )}
 
@@ -795,37 +749,32 @@ export default function App() {
         {/* Mechanic Views */}
         {activeScreen === 'mechanic_dashboard' && (
           <MechanicDashboardScreen
-            onAcceptJob={() => setActiveScreen('mechanic_navigation')}
             onOpenIncome={() => setActiveScreen('mechanic_income')}
             onOpenReviews={() => setActiveScreen('mechanic_reviews')}
             onOpenProfile={() => setActiveScreen('mechanic_profile')}
-            live={
-              live
-                ? {
-                    profile,
-                    stats,
-                    offers,
-                    jobs,
-                    error: partnerError,
-                    onAccept: async (assignmentId) => {
-                      // Mốc tính phí di chuyển = vị trí ĐĂNG KÝ hiện tại của thợ (partner_profiles.current_lat/lng),
-                      // KHÔNG ghi đè bằng GPS thiết bị người test — nhờ vậy km luôn tính đúng dù test 1 máy.
-                      const accepted = await acceptOffer(assignmentId);
-                      setOffers([]);
-                      await openJob(accepted);
-                    },
-                    onDecline: async (assignmentId) => {
-                      await declineOffer(assignmentId, 'Đang bận');
-                      refreshPartner();
-                    },
-                    onOpenJob: (job) => openJob(job).catch((e: unknown) => toast(e instanceof Error ? e.message : 'Lỗi', 'error')),
-                    onToggleReady: async (ready) => {
-                      // Chỉ bật/tắt trực tuyến; giữ nguyên vị trí đăng ký của thợ.
-                      setProfile(await updatePresence(ready ? 'ONLINE' : 'OFFLINE'));
-                    },
-                  }
-                : undefined
-            }
+            live={{
+              profile,
+              stats,
+              offers,
+              jobs,
+              error: partnerError,
+              onAccept: async (assignmentId) => {
+                // Mốc tính phí di chuyển = vị trí ĐĂNG KÝ hiện tại của thợ (partner_profiles.current_lat/lng),
+                // KHÔNG ghi đè bằng GPS thiết bị người test — nhờ vậy km luôn tính đúng dù test 1 máy.
+                const accepted = await acceptOffer(assignmentId);
+                setOffers([]);
+                await openJob(accepted);
+              },
+              onDecline: async (assignmentId) => {
+                await declineOffer(assignmentId, 'Đang bận');
+                refreshPartner();
+              },
+              onOpenJob: (job) => openJob(job).catch((e: unknown) => toast(e instanceof Error ? e.message : 'Lỗi', 'error')),
+              onToggleReady: async (ready) => {
+                // Chỉ bật/tắt trực tuyến; giữ nguyên vị trí đăng ký của thợ.
+                setProfile(await updatePresence(ready ? 'ONLINE' : 'OFFLINE'));
+              },
+            }}
           />
         )}
 
@@ -833,7 +782,6 @@ export default function App() {
           <MechanicIncomeScreen
             displayName={profile?.fullName || user?.fullName}
             stats={stats}
-            live={live}
             onRescue={() => setActiveScreen('mechanic_dashboard')}
             onReviews={() => setActiveScreen('mechanic_reviews')}
             onProfile={() => setActiveScreen('mechanic_profile')}
@@ -844,7 +792,6 @@ export default function App() {
           <MechanicReviewsScreen
             displayName={profile?.fullName || user?.fullName}
             stats={stats}
-            live={live}
             onRescue={() => setActiveScreen('mechanic_dashboard')}
             onIncome={() => setActiveScreen('mechanic_income')}
             onProfile={() => setActiveScreen('mechanic_profile')}
@@ -855,7 +802,6 @@ export default function App() {
           <MechanicProfileScreen
             profile={profile}
             stats={stats}
-            live={live}
             displayName={user?.fullName}
             phone={user?.phone}
             onRescue={() => setActiveScreen('mechanic_dashboard')}
@@ -865,29 +811,26 @@ export default function App() {
           />
         )}
 
-        {activeScreen === 'mechanic_navigation' && (
+        {activeScreen === 'mechanic_navigation' && activeOrder && (
           <MechanicNavigationScreen
-            live={
-              live && activeOrder
-                ? {
-                    orderCode: activeOrder.orderCode,
-                    contactName: currentOrderContactName(activeOrder),
-                    addressText: activeOrder.addressText,
-                    note: activeOrder.note,
-                    serviceName: activeOrder.serviceName,
-                    photoUrls: activeOrder.photoUrls,
-                  }
-                : undefined
-            }
+            live={{
+              orderCode: activeOrder.orderCode,
+              contactName: activeOrder.contactName,
+              contactPhone: activeOrder.contactPhone,
+              addressText: activeOrder.addressText,
+              note: activeOrder.note,
+              serviceName: activeOrder.serviceName,
+              photoUrls: activeOrder.photoUrls,
+              lat: activeOrder.lat,
+              lng: activeOrder.lng,
+            }}
             onArrived={async () => {
-              if (live && activeOrder) {
-                try {
-                  await arriveAtOrder(activeOrder.id);
-                  setActiveOrder(await startChecking(activeOrder.id));
-                } catch (e: unknown) {
-                  toast(e instanceof Error ? e.message : 'Không cập nhật được.', 'error');
-                  return;
-                }
+              try {
+                await arriveAtOrder(activeOrder.id);
+                setActiveOrder(await startChecking(activeOrder.id));
+              } catch (e: unknown) {
+                toast(e instanceof Error ? e.message : 'Không cập nhật được.', 'error');
+                return;
               }
               setActiveScreen('mechanic_quote_create');
             }}
@@ -896,44 +839,31 @@ export default function App() {
           />
         )}
 
-        {activeScreen === 'mechanic_quote_create' && (
+        {activeScreen === 'mechanic_quote_create' && activeOrder && (
           <MechanicQuoteCreateScreen
-            live={
-              live && activeOrder
-                ? {
-                    orderCode: activeOrder.orderCode,
-                    status: activeOrder.status,
-                    contactName: currentOrderContactName(activeOrder),
-                    contactPhone: activeOrder.contactPhone,
-                    approvedTotal: activeOrder.quote?.status === 'APPROVED' ? activeOrder.quote.totalAmount : null,
-                    callOutFee: activeOrder.callOutFee,
-                    travelDistanceKm: activeOrder.travelDistanceKm ?? null,
-                    travelFee: activeOrder.travelFee ?? null,
-                    serviceId: activeOrder.serviceId,
-                    extraServiceIds: activeOrder.extraServiceIds,
-                    quoteRevision: activeOrder.quote?.revisionNo ?? null,
-                    approvedItems: activeOrder.quote?.status === 'APPROVED' ? activeOrder.quote.items : null,
-                  }
-                : undefined
-            }
+            live={{
+              orderCode: activeOrder.orderCode,
+              status: activeOrder.status,
+              contactName: currentOrderContactName(activeOrder),
+              contactPhone: activeOrder.contactPhone,
+              approvedTotal: activeOrder.quote?.status === 'APPROVED' ? activeOrder.quote.totalAmount : null,
+              callOutFee: activeOrder.callOutFee,
+              travelDistanceKm: activeOrder.travelDistanceKm ?? null,
+              travelFee: activeOrder.travelFee ?? null,
+              serviceId: activeOrder.serviceId,
+              extraServiceIds: activeOrder.extraServiceIds,
+              quoteRevision: activeOrder.quote?.revisionNo ?? null,
+              approvedItems: activeOrder.quote?.status === 'APPROVED' ? activeOrder.quote.items : null,
+            }}
             onQuoteSent={async (items: QuoteLineInput[]) => {
-              if (live && activeOrder) {
-                await sendQuote(activeOrder.id, items);
-                setActiveOrder(await getOrder(activeOrder.id));
-              } else {
-                toast('Báo giá đã được gửi đến khách hàng!', 'success');
-              }
+              await sendQuote(activeOrder.id, items);
+              setActiveOrder(await getOrder(activeOrder.id));
             }}
             onJobFinished={async () => {
-              if (live && activeOrder) {
-                const o = await completeOrder(activeOrder.id);
-                toast(`Đã hoàn tất ${o.orderCode}. Đã ghi nhận thu ${o.payment?.amount.toLocaleString('vi-VN')} ₫ tiền mặt từ khách.`, 'success');
-                setActiveOrder(null);
-                setActiveScreen('mechanic_dashboard');
-              } else {
-                toast('Đã hoàn tất sửa chữa và thu 120.000 ₫ thành công!', 'success');
-                setActiveScreen('mechanic_dashboard');
-              }
+              const o = await completeOrder(activeOrder.id);
+              toast(`Đã hoàn tất ${o.orderCode}. Đã ghi nhận thu ${o.payment?.amount.toLocaleString('vi-VN')} ₫ tiền mặt từ khách.`, 'success');
+              setActiveOrder(null);
+              setActiveScreen('mechanic_dashboard');
             }}
             onCancelOrder={cancelActivePartnerOrder}
             onBackToNavigation={() => setActiveScreen('mechanic_navigation')}
@@ -946,24 +876,31 @@ export default function App() {
             phone={phone}
             onBack={backToEntry}
             onSubmitted={async (input) => {
-              if (live) {
-                const p = await registerPartner(input);
-                setProfile(p);
-                toast('Đã gửi hồ sơ KYC. Fix&Go sẽ duyệt trong vòng 24 giờ — bạn chưa nhận đơn cho tới khi được duyệt.', 'success');
-                setActiveScreen(p.partnerType === 'SHOP' ? 'shop_owner' : 'mechanic_dashboard');
-              } else {
-                toast('Đã gửi hồ sơ KYC. Fix&Go sẽ duyệt trong vòng 24 giờ.', 'success');
-                setActiveScreen('mechanic_dashboard');
-              }
+              const p = await registerPartner(input);
+              setProfile(p);
+              toast('Đã gửi hồ sơ KYC. Fix&Go sẽ duyệt trong vòng 24 giờ — bạn chưa nhận đơn cho tới khi được duyệt.', 'success');
+              setActiveScreen(p.partnerType === 'SHOP' ? 'shop_owner' : 'mechanic_dashboard');
             }}
           />
         )}
 
-        {activeScreen === 'shop_owner' && <ShopOwnerScreen onBack={backToEntry} live={live} />}
+        {activeScreen === 'shop_owner' && <ShopOwnerScreen onBack={backToEntry} />}
       </div>
 
       {showCustomerBottomNav && (
-        <CustomerBottomNav currentScreen={activeScreen} onNavigate={(screen) => setActiveScreen(screen)} />
+        <CustomerBottomNav
+          currentScreen={activeScreen}
+          onNavigate={(screen) => {
+            if (screen === 'customer_confirm_request' && !selectedService) {
+              if (services.length === 0) {
+                toast('Danh sách dịch vụ chưa tải xong, vui lòng thử lại.', 'info');
+                return;
+              }
+              setSelectedService(services[0]);
+            }
+            setActiveScreen(screen);
+          }}
+        />
       )}
       <NotificationHost />
     </div>

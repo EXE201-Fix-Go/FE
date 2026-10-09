@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { ASSETS, SERVICES } from '../data';
+import { useCatalog } from '../catalog/CatalogProvider';
+import { formatVND } from '../domain/money';
 import { ServiceItem } from '../types';
 import { ServerMessage } from './ServerMessage';
 import { MapView } from './MapView';
@@ -22,7 +23,7 @@ interface CustomerConfirmRequestProps {
   onLocate?: () => void;
   /** Đang lấy vị trí — hiện spinner ở nút định vị. */
   isLocating?: boolean;
-  /** Toạ độ GPS thật để ghim lên bản đồ (không có → dùng ảnh tĩnh dự phòng). */
+  /** Toạ độ GPS thật để ghim lên bản đồ (không có → hiện khung chờ định vị). */
   coords?: Coords | null;
 }
 
@@ -38,14 +39,16 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
   isLocating,
   coords,
 }) => {
-  const [note, setNote] = useState('Xe Honda Vision đỏ dựng trước cổng Circle K');
+  const { services, pricing } = useCatalog();
+  const callOutFee = pricing?.callOutFee ?? null;
+  const [note, setNote] = useState('');
   const [isRotating, setIsRotating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Dịch vụ thêm (ngoài dịch vụ chính chọn từ trang chủ)
   const [extra, setExtra] = useState<string[]>([]);
-  const addableServices = SERVICES.filter((s) => s.id !== selectedService.id);
+  const addableServices = services.filter((s) => s.id !== selectedService.id);
   const toggleExtra = (id: string) =>
     setExtra((e) => (e.includes(id) ? e.filter((x) => x !== id) : [...e, id]));
 
@@ -90,10 +93,9 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
             className="w-full h-full"
           />
         ) : (
-          <div
-            className="w-full h-full bg-cover bg-center"
-            style={{ backgroundImage: `url('${ASSETS.mapSnapshotHome}')` }}
-          />
+          <div className="w-full h-full flex items-center justify-center text-secondary">
+            <span className="material-symbols-outlined text-[40px]">location_searching</span>
+          </div>
         )}
 
         {/* Nhãn địa chỉ + độ chính xác GPS */}
@@ -133,15 +135,6 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
           </button>
         </div>
 
-        {/* Quick Radius Notification pill */}
-        <div className="absolute bottom-4 left-4 z-20">
-          <div className="bg-surface-container-lowest/95 backdrop-blur-md px-3 py-1.5 rounded-full shadow flex items-center gap-2">
-            <span className="material-symbols-outlined text-[16px] text-tertiary">moped</span>
-            <span className="font-label-sm text-[12px] text-on-surface font-semibold">
-              4 thợ gần nhất (~4-8 phút)
-            </span>
-          </div>
-        </div>
       </div>
 
       {/* Bottom Interactive Confirmation Sheet */}
@@ -189,7 +182,7 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
           {extra.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {extra.map((id) => {
-                const s = SERVICES.find((x) => x.id === id);
+                const s = services.find((x) => x.id === id);
                 if (!s) return null;
                 return (
                   <span
@@ -279,7 +272,7 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
           </span>
           <input
             className="bg-transparent w-full text-on-surface placeholder:text-on-secondary-container font-body-sm text-body-sm outline-none border-0 p-0"
-            placeholder="Ghi chú cho thợ (Vd: Xe Vision đỏ trước Circle K...)"
+            placeholder="Ghi chú cho thợ (loại xe, màu xe, mốc dễ nhận…)"
             type="text"
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -352,7 +345,9 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
               </span>
             </div>
             <div className="flex items-baseline gap-1">
-              <span className="font-data-metric-md text-[20px] text-primary font-bold">30.000</span>
+              <span className="font-data-metric-md text-[20px] text-primary font-bold">
+                {callOutFee != null ? new Intl.NumberFormat('vi-VN').format(callOutFee) : '—'}
+              </span>
               <span className="font-label-md text-label-md text-primary font-bold">₫</span>
             </div>
           </div>
@@ -368,7 +363,7 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
           )}
           <button
             onClick={handleConfirm}
-            disabled={isSubmitting}
+            disabled={isSubmitting || callOutFee == null || !currentAddress.trim()}
             className="w-full h-14 bg-primary hover:bg-primary-container active:scale-[0.99] text-on-primary rounded-xl font-label-lg text-label-lg uppercase tracking-wide flex items-center justify-between px-5 shadow-[0_8px_20px_rgba(163,57,0,0.3)] transition-all font-bold"
           >
             <span className="flex items-center gap-2">
@@ -382,7 +377,7 @@ export const CustomerConfirmRequestScreen: React.FC<CustomerConfirmRequestProps>
               <span>{isSubmitting ? 'Đang kết nối...' : 'Xác nhận & Tìm thợ ngay'}</span>
             </span>
             <span className="bg-on-primary/20 px-2.5 py-1 rounded-lg text-on-primary font-bold text-label-md">
-              30.000 ₫
+              {callOutFee != null ? formatVND(callOutFee) : '—'}
             </span>
           </button>
 

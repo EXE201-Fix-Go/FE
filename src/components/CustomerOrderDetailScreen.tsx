@@ -3,7 +3,6 @@ import { Order } from '../api/orders';
 import { ORDER_STATUS_LABEL, isTerminal } from '../domain/status';
 import { formatVND } from '../domain/money';
 import { QuoteBreakdown } from './QuoteBreakdown';
-import { SERVICES } from '../data';
 
 interface CustomerOrderDetailProps {
   order: Order;
@@ -40,7 +39,7 @@ export const CustomerOrderDetailScreen: React.FC<CustomerOrderDetailProps> = ({
   onResume,
   onViewInvoice,
 }) => {
-  const serviceName = order.serviceName ?? SERVICES.find((s) => s.id === order.serviceId)?.name ?? order.serviceId;
+  const serviceName = order.serviceName ?? order.serviceId;
   const tone = STATUS_TONE[order.status] ?? 'bg-primary-fixed text-on-primary-fixed';
   const running = !isTerminal(order.status);
   const total = order.quote?.totalAmount ?? order.payment?.amount ?? order.callOutFee;

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ASSETS, SERVICES } from '../data';
+import { useCatalog } from '../catalog/CatalogProvider';
 import { ServiceItem } from '../types';
 import { Coords } from '../domain/geo';
 import { MapView } from './MapView';
@@ -21,7 +21,7 @@ interface CustomerHomeScreenProps {
 export const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = ({
   onSelectService,
   onNavigateToConfirm,
-  selectedService = SERVICES[0],
+  selectedService,
   currentAddress,
   onAddressChange,
   onUpdateAddress,
@@ -29,6 +29,7 @@ export const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = ({
   locationStatus = 'idle',
   onLocate,
 }) => {
+  const { services, loading, error, reload } = useCatalog();
   const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [addressInput, setAddressInput] = useState(currentAddress);
 
@@ -55,13 +56,12 @@ export const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = ({
                 Cứu hộ xe máy khẩn cấp 24/7
               </span>
               <span className="font-label-md text-label-md font-bold text-white truncate">
-                Thợ có mặt sau 10 - 15 phút
+                Gọi thợ gần bạn, báo giá trước khi sửa
               </span>
             </div>
           </div>
           <div className="flex items-center gap-1 bg-surface-container-lowest/15 px-space-xs py-1 rounded-lg flex-shrink-0">
             <span className="material-symbols-outlined text-primary-fixed text-[18px]">bolt</span>
-            <span className="font-label-sm text-[12px] text-primary-fixed font-bold">Quận 1</span>
           </div>
         </div>
 
@@ -74,7 +74,7 @@ export const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = ({
             <div className="flex flex-col min-w-0">
               <span className="font-label-sm text-[11px] text-secondary truncate">Vị trí hiện tại của bạn</span>
               <span className="font-label-md text-label-md text-on-surface font-bold truncate">
-                {currentAddress}
+                {currentAddress || 'Chưa có địa chỉ — bấm “Đổi” để nhập'}
               </span>
               <LocationStatusLine status={locationStatus} coords={coords} />
             </div>
@@ -151,13 +151,15 @@ export const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = ({
           {coords ? (
             <MapView center={{ lat: coords.lat, lng: coords.lng }} zoom={15} accuracy={coords.accuracy} className="w-full h-full" />
           ) : (
-            <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url('${ASSETS.mapSnapshotHome}')` }} />
+            <div className="w-full h-full flex items-center justify-center text-secondary">
+              <span className="material-symbols-outlined text-[28px]">location_searching</span>
+            </div>
           )}
           <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-inverse-surface/90 via-inverse-surface/30 to-transparent flex items-end p-space-sm z-[500]">
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-space-xs text-inverse-on-surface">
                 <span className="material-symbols-outlined text-tertiary-fixed-dim text-[18px]">electric_moped</span>
-                <span className="font-label-sm text-[12px] font-bold">5 thợ gần nhất đang trực tuyến sẵn sàng</span>
+                <span className="font-label-sm text-[12px] font-bold">Vị trí của bạn trên bản đồ</span>
               </div>
               <span className="font-label-sm text-[11px] bg-tertiary-container text-on-tertiary-container px-2 py-0.5 rounded-full font-bold shadow-sm">
                 Định vị GPS
@@ -173,9 +175,18 @@ export const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = ({
         </div>
 
         {/* Services Triage 2-Column Responsive Grid */}
+        {loading && services.length === 0 && (
+          <p className="font-body-sm text-secondary text-center py-space-md">Đang tải danh sách dịch vụ…</p>
+        )}
+        {error && services.length === 0 && (
+          <div className="rounded-xl bg-error-container text-on-error-container p-space-sm flex items-center justify-between gap-2">
+            <span className="font-body-sm">{error}</span>
+            <button type="button" onClick={reload} className="font-label-sm font-bold underline flex-shrink-0">Thử lại</button>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-space-sm" id="service-grid">
-          {SERVICES.map((service) => {
-            const isSelected = selectedService.id === service.id;
+          {services.map((service) => {
+            const isSelected = selectedService?.id === service.id;
             return (
               <button
                 key={service.id}
@@ -249,8 +260,8 @@ const LocationStatusLine: React.FC<{ status: LocationStatus; coords?: Coords | n
       text: coords ? `Đã định vị GPS · ±${Math.round(coords.accuracy)}m` : 'Đã định vị GPS',
       tone: 'text-tertiary',
     },
-    denied: { icon: 'location_off', text: 'Chưa bật vị trí — đang dùng vị trí mẫu', tone: 'text-error' },
-    unsupported: { icon: 'location_disabled', text: 'Máy không hỗ trợ định vị — dùng vị trí mẫu', tone: 'text-error' },
+    denied: { icon: 'location_off', text: 'Chưa bật vị trí — đang dùng vị trí khu vực thí điểm', tone: 'text-error' },
+    unsupported: { icon: 'location_disabled', text: 'Máy không hỗ trợ định vị — dùng vị trí khu vực thí điểm', tone: 'text-error' },
   };
   const m = meta[status];
   return (

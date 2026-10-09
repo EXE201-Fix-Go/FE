@@ -6,7 +6,7 @@ import { formatVND } from '../domain/money';
 import { PARTNER_ORDER_STATUS_LABEL } from '../domain/status';
 import { MechanicBottomNav } from './MechanicBottomNav';
 
-/** Dữ liệu thật từ backend; không có → chạy demo với đơn mẫu. */
+/** Dữ liệu thật từ backend (hồ sơ, lời mời, đơn đang làm, thống kê). */
 export interface MechanicDashboardLive {
   profile: PartnerProfile | null;
   stats: PartnerStats | null;
@@ -20,78 +20,54 @@ export interface MechanicDashboardLive {
 }
 
 interface MechanicDashboardProps {
-  onAcceptJob: () => void;
   onOpenIncome: () => void;
   onOpenReviews: () => void;
   onOpenProfile: () => void;
-  live?: MechanicDashboardLive;
+  live: MechanicDashboardLive;
 }
 
 export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
-  onAcceptJob,
   onOpenIncome,
   onOpenReviews,
   onOpenProfile,
   live,
 }) => {
-  const [isReady, setIsReady] = useState(true);
   const [isTogglingReady, setIsTogglingReady] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(12);
-  const totalTime = 15;
-  const [isJobRejected, setIsJobRejected] = useState(false);
   const [liveError, setLiveError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (!live) return;
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
-  }, [live]);
-  const offer: Offer | null = live ? live.offers[0] ?? null : null;
-  const showCard = live ? offer !== null : !isJobRejected;
-  const secsLeft = offer?.expiresAt ? Math.max(0, Math.round((new Date(offer.expiresAt).getTime() - now) / 1000)) : timeLeft;
-  const readyNow = live ? live.profile?.availability === 'ONLINE' : isReady;
-  const displayName = live?.profile?.fullName || 'Nguyễn Văn Tuấn';
+  }, []);
+  const offer: Offer | null = live.offers[0] ?? null;
+  const secsLeft = offer?.expiresAt ? Math.max(0, Math.round((new Date(offer.expiresAt).getTime() - now) / 1000)) : 0;
+  const readyNow = live.profile?.availability === 'ONLINE';
+  const displayName = live.profile?.fullName || 'Đối tác Fix&Go';
   const [isJobAccepting, setIsJobAccepting] = useState(false);
 
-  useEffect(() => {
-    if (isJobRejected || timeLeft <= 0) return;
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [isJobRejected, timeLeft]);
-
-  const progressPercent = live ? Math.min(100, (secsLeft / 90) * 100) : Math.max(0, (timeLeft / totalTime) * 100);
+  const progressPercent = Math.min(100, (secsLeft / 90) * 100);
 
   const handleAccept = async () => {
+    if (!offer) return;
     setIsJobAccepting(true);
     setLiveError(null);
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
       navigator.vibrate([100, 50, 200]);
     }
-    if (live && offer) {
-      try {
-        await live.onAccept(offer.assignmentId);
-      } catch (e: unknown) {
-        setLiveError(e instanceof Error ? e.message : 'Không nhận được đơn.');
-      } finally {
-        setIsJobAccepting(false);
-      }
-      return;
+    try {
+      await live.onAccept(offer.assignmentId);
+    } catch (e: unknown) {
+      setLiveError(e instanceof Error ? e.message : 'Không nhận được đơn.');
+    } finally {
+      setIsJobAccepting(false);
     }
-    setTimeout(() => {
-      onAcceptJob();
-    }, 800);
   };
 
   const handleDecline = () => {
-    if (live && offer) {
-      live.onDecline(offer.assignmentId).catch((e: unknown) =>
-        setLiveError(e instanceof Error ? e.message : 'Không từ chối được.')
-      );
-      return;
-    }
-    setIsJobRejected(true);
+    if (!offer) return;
+    live.onDecline(offer.assignmentId).catch((e: unknown) =>
+      setLiveError(e instanceof Error ? e.message : 'Không từ chối được.')
+    );
   };
 
   const handleToggleReady = async () => {
@@ -99,11 +75,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
     setIsTogglingReady(true);
     setLiveError(null);
     try {
-      if (live) {
-        await live.onToggleReady(!readyNow);
-      } else {
-        setIsReady((prev) => !prev);
-      }
+      await live.onToggleReady(!readyNow);
     } catch (e: unknown) {
       setLiveError(e instanceof Error ? e.message : 'Không đổi được trạng thái.');
     } finally {
@@ -130,7 +102,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
                   </span>
                 </div>
                 <span className="font-body-sm text-[12px] text-secondary leading-tight mt-0.5">
-                  Kỹ thuật viên Fix&amp;Go
+                  Đối tác Fix&amp;Go
                 </span>
               </div>
             </div>
@@ -182,10 +154,10 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
 
       {/* Main Content */}
       <main className="flex flex-col relative w-full pt-20 px-gutter gap-space-md mt-2">
-        {(live?.error || liveError) && (
-          <ServerMessage variant="error">{live?.error || liveError}</ServerMessage>
+        {(live.error || liveError) && (
+          <ServerMessage variant="error">{live.error || liveError}</ServerMessage>
         )}
-        {live && live.jobs.length > 0 && (
+        {live.jobs.length > 0 && (
           <section className="bg-surface-container-lowest rounded-xl p-[15px] shadow-sm border border-tertiary/30 flex flex-col gap-2">
             <h3 className="font-label-lg text-on-surface font-bold flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px] text-tertiary">build_circle</span>
@@ -225,10 +197,10 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
             </div>
             <div className="mt-space-sm">
               <span className="font-headline-lg-mobile text-headline-lg-mobile text-primary block tracking-tight font-extrabold">
-                {live ? formatVND(live.stats?.earnedToday ?? 0) : '480.000 ₫'}
+                {formatVND(live.stats?.earnedToday ?? 0)}
               </span>
               <span className="font-body-sm text-[12px] text-secondary flex items-center gap-1 mt-0.5 font-medium">
-                <span className="font-label-md text-label-md text-on-surface font-bold">{live ? live.stats?.completedToday ?? 0 : 6}</span> cuốc hoàn tất
+                <span className="font-label-md text-label-md text-on-surface font-bold">{live.stats?.completedToday ?? 0}</span> cuốc hoàn tất
               </span>
             </div>
           </div>
@@ -246,13 +218,13 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
             <div className="mt-space-sm flex items-end justify-between">
               <div>
                 <span className="font-headline-lg-mobile text-headline-lg-mobile text-on-surface block tracking-tight font-extrabold">
-                  {live ? live.stats?.completedTotal ?? 0 : '98%'}
+                  {live.stats?.completedTotal ?? 0}
                 </span>
-                <span className="font-body-sm text-[12px] text-secondary">{live ? 'Tổng cuốc' : 'Tỷ lệ nhận'}</span>
+                <span className="font-body-sm text-[12px] text-secondary">Tổng cuốc</span>
               </div>
               <div className="text-right">
                 <span className="font-headline-lg-mobile text-headline-lg-mobile text-on-surface flex items-center justify-end gap-0.5 font-extrabold">
-                  {live ? (live.stats?.averageRating != null ? live.stats.averageRating.toFixed(1) : '—') : '4.9'}
+                  {live.stats?.averageRating != null ? live.stats.averageRating.toFixed(1) : '—'}
                   <span
                     className="material-symbols-outlined text-[18px] text-primary"
                     style={{ fontVariationSettings: "'FILL' 1" }}
@@ -260,14 +232,14 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
                     star
                   </span>
                 </span>
-                <span className="font-body-sm text-[12px] text-secondary">{live ? `${live.stats?.reviewCount ?? 0} đánh giá` : '52 đánh giá'}</span>
+                <span className="font-body-sm text-[12px] text-secondary">{`${live.stats?.reviewCount ?? 0} đánh giá`}</span>
               </div>
             </div>
           </div>
         </section>
 
         {/* Flash Card: Cuốc Cứu Hộ Khẩn Cấp Mới (Incoming Job Radar) */}
-        {showCard ? (
+        {offer ? (
           <section
             className="bg-surface-container-lowest rounded-xl p-space-md shadow-xl relative overflow-hidden transition-all duration-300 border border-primary/20"
             id="incoming-order-card"
@@ -295,11 +267,11 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
                       Khẩn cấp
                     </span>
                     <span className="font-label-sm text-[11px] text-secondary font-mono font-bold">
-                      Mã: {offer ? offer.orderCode : '#HG-9021'}
+                      Mã: {offer.orderCode}
                     </span>
                   </div>
                   <h2 className="font-headline-md text-headline-md text-on-surface mt-0.5 leading-snug font-bold">
-                    {offer ? offer.serviceName : 'Vá lốp lưu động'}
+                    {offer.serviceName}
                   </h2>
                 </div>
               </div>
@@ -325,12 +297,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
                   Ước tính thu nhập
                 </span>
                 <span className="font-headline-lg-mobile text-headline-lg-mobile text-primary tracking-tight font-extrabold">
-                  {offer ? `${formatVND(offer.callOutFee)} + công` : '95.000 ₫ - 120.000 ₫'}
-                </span>
-              </div>
-              <div className="text-right">
-                <span className="font-label-sm text-[11px] text-tertiary font-bold bg-surface-container-lowest px-2 py-1 rounded shadow-xs block">
-                  Đã gồm 30k phí di chuyển
+                  {`${formatVND(offer.callOutFee)} + công`}
                 </span>
               </div>
             </div>
@@ -345,16 +312,13 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-label-lg text-label-lg text-on-surface font-bold">
-                      {offer ? `Vòng phát ${offer.roundNo}` : '1.2 km'}
+                      {`Vòng phát ${offer.roundNo}`}
                     </span>
                     <span className="w-1 h-1 rounded-full bg-secondary"></span>
                     <span className="font-label-md text-label-md text-tertiary font-bold">
-                      {offer ? 'trong bán kính của bạn' : '~4 phút xe máy'}
+                      trong bán kính của bạn
                     </span>
                   </div>
-                  <p className="font-body-sm text-[12px] text-secondary truncate">
-                    Tuyến nhanh nhất: Nguyễn Trãi ➔ Cống Quỳnh
-                  </p>
                 </div>
               </div>
 
@@ -365,10 +329,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="font-label-md text-label-md text-on-surface font-bold block">
-                    {offer ? offer.addressText : '242 Cống Quỳnh, P. Phạm Ngũ Lão, Q.1'}
-                  </span>
-                  <span className="font-body-sm text-[12px] text-secondary block mt-0.5">
-                    Vị trí nhận diện: Trước cửa hàng tiện lợi Circle K
+                    {offer.addressText}
                   </span>
                 </div>
               </div>
@@ -380,14 +341,14 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="font-label-md text-label-md text-on-surface font-bold block">
-                    Honda Vision 2022 • Lốp không ruột (Tubeless)
+                    Ghi chú của khách
                   </span>
                   <div className="mt-1 bg-surface-container-high/60 p-2.5 rounded-lg flex items-start gap-1.5 border border-surface-container">
                     <span className="material-symbols-outlined text-secondary text-[16px] shrink-0 mt-0.5">
                       chat
                     </span>
                     <p className="font-body-sm text-[12.5px] text-on-surface italic leading-snug">
-                      "{offer ? offer.note || 'Không có ghi chú' : 'Bị cán đinh gần ngã 4, xe hết hơi xẹp lép không dắt được. Cần hỗ trợ vá nấm gấp ạ!'}"
+                      "{offer.note || 'Không có ghi chú'}"
                     </p>
                   </div>
                 </div>
@@ -395,7 +356,7 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
             </div>
 
             {/* Ảnh hiện trường khách gửi (BR05) */}
-            {offer && offer.photoUrls && offer.photoUrls.length > 0 && (
+            {offer.photoUrls && offer.photoUrls.length > 0 && (
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {offer.photoUrls.map((u) => (
                   <a key={u} href={u} target="_blank" rel="noreferrer" className="shrink-0">
@@ -445,130 +406,16 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
               notifications_paused
             </span>
             <h3 className="font-headline-md text-on-surface font-bold">
-              {live ? (readyNow ? 'Đang chờ đơn mới…' : 'Bạn đang tạm nghỉ') : 'Đã bỏ qua đơn này'}
+              {readyNow ? 'Đang chờ đơn mới…' : 'Bạn đang tạm nghỉ'}
             </h3>
             <p className="font-body-sm text-[12.5px] text-secondary">
-              {live
-                ? readyNow
-                  ? 'Khi khách gần bạn đặt cứu hộ, đơn sẽ hiện ở đây (tự làm mới mỗi 3 giây).'
-                  : 'Bật "Sẵn sàng" ở góc trên để nhận đơn.'
-                : 'Hệ thống đang quét các sự cố tiếp theo xung quanh khu vực Quận 1.'}
+              {readyNow
+                ? 'Khi khách gần bạn đặt cứu hộ, đơn sẽ hiện ở đây (tự làm mới mỗi 3 giây).'
+                : 'Bật "Sẵn sàng" ở góc trên để nhận đơn.'}
             </p>
-            {!live && (
-              <button
-                onClick={() => {
-                  setIsJobRejected(false);
-                  setTimeLeft(15);
-                }}
-                className="px-3 py-1.5 rounded-lg bg-primary-fixed text-on-primary-fixed font-label-sm text-[12px] font-bold"
-              >
-                Mô phỏng lại đơn mới
-              </button>
-            )}
           </div>
         )}
 
-        {/* Bản Đồ Tải Nhiệt Cứu Hộ & Điểm Nóng (Heatmap Q1) */}
-        <section className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm border border-surface-container">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-error animate-pulse"></div>
-              <h3 className="font-label-lg text-label-lg text-on-surface font-bold">
-                Bản đồ nhu cầu khu vực Q.1
-              </h3>
-            </div>
-            <span className="font-label-sm text-[12px] text-primary uppercase font-bold">
-              Nhu cầu cao
-            </span>
-          </div>
-
-          <div
-            className="w-full h-40 bg-cover bg-center rounded-xl relative overflow-hidden flex flex-col justify-end p-space-sm shadow-inner"
-            style={{ backgroundImage: `url('${ASSETS.heatmapQ1}')` }}
-          >
-            <div className="absolute inset-0 bg-gradient-to-t from-inverse-surface/80 via-transparent to-transparent"></div>
-            <div className="relative z-10 flex items-center justify-between text-inverse-on-surface">
-              <div className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-tertiary-fixed text-[18px]">
-                  local_fire_department
-                </span>
-                <span className="font-label-sm text-[12px] font-medium">
-                  Đang có 14 sự cố đang chờ điều phối
-                </span>
-              </div>
-              <span className="px-2 py-0.5 rounded bg-surface-container-lowest/20 backdrop-blur-md text-inverse-on-surface font-label-sm text-[11px] font-bold">
-                Bán kính 2.5 km
-              </span>
-            </div>
-          </div>
-        </section>
-
-        {/* Checklist Dụng Cụ Cốp Xe Cần Kiểm Tra */}
-        <section className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm mb-space-md border border-surface-container">
-          <div className="flex items-center justify-between pb-space-sm">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary text-[20px]">handyman</span>
-              <h3 className="font-label-lg text-label-lg text-on-surface font-bold">
-                Dụng cụ khuyến nghị cho ca trực
-              </h3>
-            </div>
-            <span className="font-label-sm text-[11px] text-secondary font-bold">4/4 Sẵn sàng</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-space-sm">
-            {/* Món 1: Dùi & Keo vá nấm */}
-            <div className="p-space-sm rounded-lg bg-surface-container-low flex items-center gap-2.5 border border-surface-container">
-              <div className="w-7 h-7 rounded-full bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[16px]">check</span>
-              </div>
-              <div className="min-w-0">
-                <span className="font-label-sm text-label-sm text-on-surface block truncate font-bold">
-                  Vá nấm &amp; Cao su
-                </span>
-                <span className="font-body-sm text-[11px] text-secondary block">Đầy đủ 12 nút</span>
-              </div>
-            </div>
-
-            {/* Món 2: Máy bơm điện 12V */}
-            <div className="p-space-sm rounded-lg bg-surface-container-low flex items-center gap-2.5 border border-surface-container">
-              <div className="w-7 h-7 rounded-full bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[16px]">check</span>
-              </div>
-              <div className="min-w-0">
-                <span className="font-label-sm text-label-sm text-on-surface block truncate font-bold">
-                  Bơm lốp pin mini
-                </span>
-                <span className="font-body-sm text-[11px] text-secondary block">Pin 95%</span>
-              </div>
-            </div>
-
-            {/* Món 3: Cáp kích bình */}
-            <div className="p-space-sm rounded-lg bg-surface-container-low flex items-center gap-2.5 border border-surface-container">
-              <div className="w-7 h-7 rounded-full bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[16px]">check</span>
-              </div>
-              <div className="min-w-0">
-                <span className="font-label-sm text-label-sm text-on-surface block truncate font-bold">
-                  Bộ kích ắc quy
-                </span>
-                <span className="font-body-sm text-[11px] text-secondary block">12.6V chuẩn</span>
-              </div>
-            </div>
-
-            {/* Món 4: Áo phản quang */}
-            <div className="p-space-sm rounded-lg bg-surface-container-low flex items-center gap-2.5 border border-surface-container">
-              <div className="w-7 h-7 rounded-full bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[16px]">check</span>
-              </div>
-              <div className="min-w-0">
-                <span className="font-label-sm text-label-sm text-on-surface block truncate font-bold">
-                  Áo phản quang
-                </span>
-                <span className="font-body-sm text-[11px] text-secondary block">Cứu hộ đêm</span>
-              </div>
-            </div>
-          </div>
-        </section>
       </main>
 
       <MechanicBottomNav

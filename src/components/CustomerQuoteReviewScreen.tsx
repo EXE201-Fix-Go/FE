@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { ASSETS, DEFAULT_MECHANIC } from '../data';
 import { Quote } from '../api/orders';
 import { formatVND } from '../domain/money';
 import { ServerMessage } from './ServerMessage';
@@ -10,8 +9,8 @@ interface CustomerQuoteReviewProps {
   /** Duyệt/từ chối trên backend; ném lỗi nếu thất bại. */
   onAccept: () => Promise<void> | void;
   onDecline: () => Promise<void> | void;
-  /** Báo giá thật từ backend; không có → hiển thị mẫu. */
-  quote?: Quote | null;
+  /** Báo giá thật từ backend (đang chờ khách duyệt). */
+  quote: Quote;
   orderCode?: string;
   mechanicName?: string | null;
 }
@@ -27,9 +26,9 @@ export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
   const [isAccepting, setIsAccepting] = useState(false);
   const [isAccepted, setIsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const total = quote ? quote.totalAmount : 120000;
-  const callOutFee = quote ? quote.callOutFeeAmount : 30000;
-  const displayName = mechanicName || DEFAULT_MECHANIC.name;
+  const total = quote.totalAmount;
+  const callOutFee = quote.callOutFeeAmount;
+  const displayName = mechanicName || 'Thợ Fix&Go';
 
   const handleAcceptClick = async () => {
     setIsAccepting(true);
@@ -54,10 +53,6 @@ export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
             Đã hoàn tất giám định tại chỗ
           </span>
         </div>
-        <span className="font-label-sm text-[12px] text-secondary flex items-center gap-1 font-semibold">
-          <span className="material-symbols-outlined text-[16px] text-tertiary">verified_user</span>
-          Bảo hộ giá 100%
-        </span>
       </div>
 
       <div className="space-y-1">
@@ -72,52 +67,20 @@ export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
       {/* Dispatched Mechanic Profile Snippet */}
       <div className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm space-y-space-sm border border-surface-container">
         <div className="flex items-center gap-space-md">
-          <div className="relative flex-shrink-0">
-            <img
-              alt={`Thợ sửa xe ${displayName}`}
-              className="w-14 h-14 rounded-full object-cover shadow-sm"
-              src={DEFAULT_MECHANIC.avatar}
-            />
-            <div className="absolute -bottom-1 -right-1 bg-tertiary text-on-tertiary rounded-full w-5 h-5 flex items-center justify-center text-[11px] font-bold shadow-sm">
-              ✓
-            </div>
+          <div
+            aria-hidden
+            className="w-14 h-14 rounded-full flex-shrink-0 bg-primary-fixed text-on-primary-fixed flex items-center justify-center font-headline-md text-[22px] font-bold"
+          >
+            {displayName.trim().charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between">
-              <h3 className="font-headline-md text-headline-md text-on-surface truncate font-bold">
-                {displayName}
-              </h3>
-              <span className="flex items-center gap-0.5 px-2 py-0.5 rounded bg-primary-fixed text-on-primary-fixed font-label-sm text-label-sm font-bold">
-                <span
-                  className="material-symbols-outlined text-[14px]"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  star
-                </span>
-                4.9
-              </span>
-            </div>
-            <p className="font-body-sm text-[12px] text-secondary flex items-center gap-1 mt-0.5">
-              <span className="material-symbols-outlined text-[15px] text-primary">verified</span>
-              {DEFAULT_MECHANIC.team}
-            </p>
+            <h3 className="font-headline-md text-headline-md text-on-surface truncate font-bold">
+              {displayName}
+            </h3>
+            <p className="font-body-sm text-[12px] text-secondary mt-0.5">Thợ cứu hộ Fix&amp;Go</p>
           </div>
         </div>
 
-        {/* Diagnostic result card */}
-        <div className="px-space-md py-2.5 rounded-lg bg-surface-container-low flex items-start gap-2.5 border border-surface-container">
-          <span className="material-symbols-outlined text-primary text-[20px] flex-shrink-0 mt-0.5">
-            build_circle
-          </span>
-          <div className="text-on-surface min-w-0">
-            <span className="font-label-sm text-[11px] text-on-surface-variant block uppercase tracking-wide font-bold">
-              Chẩn đoán sự cố:
-            </span>
-            <span className="font-body-sm text-[13px] text-on-surface font-semibold">
-              Thủng lốp do đinh tán • Cần vá nấm chịu lực chuyên dụng
-            </span>
-          </div>
-        </div>
       </div>
 
       {/* Itemized Breakdown Receipt */}
@@ -127,103 +90,11 @@ export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
             Bảng kê chi tiết hạng mục
           </span>
           <span className="font-label-sm text-[11px] text-secondary bg-surface-container px-2 py-0.5 rounded font-mono font-bold">
-            {orderCode ? `Mã đơn: ${orderCode}` : 'Mã dịch vụ: #FG-8821'}
+            {orderCode ? `Mã đơn: ${orderCode}` : ''}
           </span>
         </div>
 
-        {quote ? (
-          <QuoteBreakdown quote={quote} />
-        ) : (
-        <div className="space-y-3 font-body-sm text-body-sm">
-          {/* Item 1 */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-start gap-2 min-w-0">
-              <span className="w-5 h-5 rounded-full bg-surface-container text-secondary flex items-center justify-center font-label-sm text-[11px] flex-shrink-0 mt-0.5 font-bold">
-                1
-              </span>
-              <div>
-                <p className="text-on-surface font-medium leading-snug">Phí xuất phát cứu hộ</p>
-                <p className="font-label-sm text-[11px] text-secondary">Điều phối &amp; di chuyển tận nơi</p>
-              </div>
-            </div>
-            <span className="font-label-md text-label-md text-on-surface tabular-nums whitespace-nowrap font-bold">
-              30.000 ₫
-            </span>
-          </div>
-
-          {/* Item 2 */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-start gap-2 min-w-0">
-              <span className="w-5 h-5 rounded-full bg-surface-container text-secondary flex items-center justify-center font-label-sm text-[11px] flex-shrink-0 mt-0.5 font-bold">
-                2
-              </span>
-              <div>
-                <p className="text-on-surface font-medium leading-snug">Tiền công kiểm tra &amp; sửa chữa</p>
-                <p className="font-label-sm text-[11px] text-secondary">
-                  Rút đinh, làm sạch bề mặt &amp; bơm áp suất
-                </p>
-              </div>
-            </div>
-            <span className="font-label-md text-label-md text-on-surface tabular-nums whitespace-nowrap font-bold">
-              40.000 ₫
-            </span>
-          </div>
-
-          {/* Item 3 */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-start gap-2 min-w-0">
-              <span className="w-5 h-5 rounded-full bg-surface-container text-secondary flex items-center justify-center font-label-sm text-[11px] flex-shrink-0 mt-0.5 font-bold">
-                3
-              </span>
-              <div>
-                <p className="text-on-surface font-medium leading-snug">Miếng vá nấm chịu lực cao cấp</p>
-                <p className="font-label-sm text-[11px] text-secondary">
-                  Chống rò rỉ áp suất lốp không ruột (Japan Tech)
-                </p>
-              </div>
-            </div>
-            <span className="font-label-md text-label-md text-on-surface tabular-nums whitespace-nowrap font-bold">
-              50.000 ₫
-            </span>
-          </div>
-
-          {/* Item 4 */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-start gap-2 min-w-0">
-              <span className="w-5 h-5 rounded-full bg-surface-container text-secondary flex items-center justify-center font-label-sm text-[11px] flex-shrink-0 mt-0.5 font-bold">
-                4
-              </span>
-              <div>
-                <p className="text-on-surface font-medium leading-snug">Phụ phí cứu hộ ban đêm</p>
-                <p className="font-label-sm text-[11px] text-secondary">Khung giờ an toàn sau 22:00</p>
-              </div>
-            </div>
-            <span className="font-label-md text-label-md text-on-surface tabular-nums whitespace-nowrap font-bold">
-              20.000 ₫
-            </span>
-          </div>
-
-          {/* Item 5 (Discount) */}
-          <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-surface-container-low border border-surface-container">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="material-symbols-outlined text-tertiary text-[20px] flex-shrink-0">
-                sell
-              </span>
-              <div className="truncate">
-                <p className="text-on-surface font-medium leading-snug truncate">
-                  Mã giảm giá Fix&amp;Go Thành viên mới
-                </p>
-                <p className="font-label-sm text-[11px] text-tertiary font-bold">
-                  Ưu đãi đồng hành an tâm
-                </p>
-              </div>
-            </div>
-            <span className="font-label-lg text-label-lg text-tertiary tabular-nums whitespace-nowrap font-extrabold">
-              -20.000 ₫
-            </span>
-          </div>
-        </div>
-        )}
+        <QuoteBreakdown quote={quote} />
 
         {/* Divider Pill */}
         <div className="w-full h-px bg-surface-container-high my-space-sm"></div>
@@ -232,10 +103,7 @@ export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
         <div className="p-space-md rounded-xl bg-surface-container-high/60 flex items-center justify-between gap-3 border border-surface-container">
           <div>
             <span className="font-label-sm text-[11px] text-secondary uppercase tracking-wider block font-bold">
-              Tổng thanh toán (đã gồm VAT)
-            </span>
-            <span className="font-body-sm text-[12px] text-on-surface-variant font-medium">
-              Không phát sinh bất kỳ chi phí nào
+              Tổng thanh toán
             </span>
           </div>
           <div className="text-right">
@@ -259,7 +127,7 @@ export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
           </h4>
           <p className="font-body-sm text-[12.5px] text-on-surface leading-snug">
             Chỉ thanh toán đúng <strong className="font-bold text-on-surface">{formatVND(total)}</strong> sau khi xe sửa
-            xong và chạy thử. Miễn phí bảo hành vết vá <strong>30 ngày</strong> trên toàn hệ thống Fix&amp;Go.
+            xong. Mọi hạng mục phát sinh thêm đều cần bạn đồng ý bằng một báo giá mới.
           </p>
         </div>
       </div>
@@ -325,10 +193,6 @@ export const CustomerQuoteReviewScreen: React.FC<CustomerQuoteReviewProps> = ({
           </button>
         </div>
 
-        {/* Safety Microcopy */}
-        <p className="font-label-sm text-[11px] text-center text-secondary">
-          Sau khi bấm Đồng ý, thợ sẽ tiến hành thi công vá nấm trong ~10-15 phút.
-        </p>
       </div>
     </div>
   );

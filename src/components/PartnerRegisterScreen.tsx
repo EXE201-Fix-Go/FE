@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { SERVICES } from '../data';
+import { useCatalog } from '../catalog/CatalogProvider';
 import { RegisterPartnerInput } from '../api/partner';
 
 interface PartnerRegisterScreenProps {
@@ -84,6 +84,7 @@ export const PartnerRegisterScreen: React.FC<PartnerRegisterScreenProps> = ({
   onBack,
   onSubmitted,
 }) => {
+  const { services } = useCatalog();
   const [name, setName] = useState('');
   const [area, setArea] = useState('');
   const [shopType, setShopType] = useState<'independent' | 'shop'>('independent');
@@ -291,7 +292,7 @@ export const PartnerRegisterScreen: React.FC<PartnerRegisterScreenProps> = ({
         <section className="bg-surface-container-lowest rounded-2xl p-[15px] shadow-sm flex flex-col gap-space-sm">
           <span className="font-label-md text-on-surface font-bold">Dịch vụ bạn nhận</span>
           <div className="flex flex-wrap gap-1.5">
-            {SERVICES.map((s) => {
+            {services.map((s) => {
               const on = skills.includes(s.id);
               return (
                 <button

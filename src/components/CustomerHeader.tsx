@@ -1,5 +1,5 @@
 import React from 'react';
-import { ASSETS } from '../data';
+import { ASSETS, SUPPORT_PHONE } from '../data';
 import { ScreenId } from '../types';
 
 interface CustomerHeaderProps {
@@ -65,27 +65,28 @@ export const CustomerHeader: React.FC<CustomerHeaderProps> = ({
 
         {/* Right: Hotline + Profile */}
         <div className="flex items-center gap-space-sm flex-shrink-0">
-          {shouldShowBack ? (
-            <a
-              className="w-10 h-10 rounded-full bg-primary-container text-on-primary flex items-center justify-center shadow-sm active:scale-95 transition-all"
-              href="tel:19006868"
-              aria-label="Gọi hotline khẩn cấp 1900 6868"
-              title="Hotline khẩn cấp 24/7"
-            >
-              <span className="material-symbols-outlined text-[20px]">call</span>
-            </a>
-          ) : (
-            <a
-              className="h-10 px-3 rounded-full bg-primary-container text-on-primary flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
-              href="tel:19006868"
-              title="Hotline khẩn cấp 24/7"
-            >
-              <span className="material-symbols-outlined text-[18px]">call</span>
-              <span className="font-label-md text-[13px] font-bold leading-none whitespace-nowrap">
-                1900 6868
-              </span>
-            </a>
-          )}
+          {SUPPORT_PHONE &&
+            (shouldShowBack ? (
+              <a
+                className="w-10 h-10 rounded-full bg-primary-container text-on-primary flex items-center justify-center shadow-sm active:scale-95 transition-all"
+                href={`tel:${SUPPORT_PHONE}`}
+                aria-label={`Gọi hotline ${SUPPORT_PHONE}`}
+                title="Hotline hỗ trợ"
+              >
+                <span className="material-symbols-outlined text-[20px]">call</span>
+              </a>
+            ) : (
+              <a
+                className="h-10 px-3 rounded-full bg-primary-container text-on-primary flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
+                href={`tel:${SUPPORT_PHONE}`}
+                title="Hotline hỗ trợ"
+              >
+                <span className="material-symbols-outlined text-[18px]">call</span>
+                <span className="font-label-md text-[13px] font-bold leading-none whitespace-nowrap">
+                  {SUPPORT_PHONE}
+                </span>
+              </a>
+            ))}
 
           <button
             onClick={onProfileClick}

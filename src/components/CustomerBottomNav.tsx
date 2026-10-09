@@ -1,5 +1,6 @@
 import React from 'react';
 import { ScreenId } from '../types';
+import { SUPPORT_PHONE } from '../data';
 
 interface CustomerBottomNavProps {
   currentScreen: ScreenId;
@@ -26,7 +27,7 @@ const LEFT_ITEMS: SideItem[] = [
   { key: 'history', label: 'Lịch sử', icon: 'history', screen: 'customer_history' },
 ];
 const RIGHT_ITEMS: SideItem[] = [
-  { key: 'support', label: 'Hỗ trợ', icon: 'support_agent', href: 'tel:19006868' },
+  { key: 'support', label: 'Hỗ trợ', icon: 'support_agent', href: `tel:${SUPPORT_PHONE}` },
   { key: 'profile', label: 'Hồ sơ', icon: 'account_circle', screen: 'customer_profile' },
 ];
 
@@ -100,7 +101,7 @@ export const CustomerBottomNav: React.FC<CustomerBottomNavProps> = ({
           </button>
         </div>
 
-        <SideTab item={RIGHT_ITEMS[0]} />
+        {SUPPORT_PHONE ? <SideTab item={RIGHT_ITEMS[0]} /> : <div />}
         <SideTab item={RIGHT_ITEMS[1]} />
       </div>
     </nav>

@@ -1,14 +1,23 @@
-import React, { useState } from 'react';
-import { ASSETS } from '../data';
-import { toast } from './notify';
+import React from 'react';
+import { MapView } from './MapView';
 
 interface MechanicNavigationProps {
-  /** Bấm "Đã tới nơi" — khi nối backend là async (ARRIVED → CHECKING). */
+  /** Bấm "Đã tới nơi" — async (ARRIVED → CHECKING). */
   onArrived: () => Promise<void> | void;
   /** Từ chối/hủy đơn sau khi đối tác đã nhận nhưng chưa hoàn tất. */
   onCancelOrder: () => Promise<void> | void;
-  /** Đơn thật (tên khách, địa chỉ, ghi chú); không có → mẫu. */
-  live?: { orderCode: string; contactName?: string | null; addressText: string; note?: string | null; serviceName: string; photoUrls?: string[] };
+  /** Đơn thật đang thực hiện. */
+  live: {
+    orderCode: string;
+    contactName?: string | null;
+    contactPhone?: string | null;
+    addressText: string;
+    note?: string | null;
+    serviceName: string;
+    photoUrls?: string[];
+    lat: number;
+    lng: number;
+  };
   onBackToDashboard: () => void;
 }
 
@@ -18,133 +27,87 @@ export const MechanicNavigationScreen: React.FC<MechanicNavigationProps> = ({
   live,
   onBackToDashboard,
 }) => {
-  const [speed, setSpeed] = useState(32);
+  const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${live.lat},${live.lng}&travelmode=motorcycle`;
+  const customerName = live.contactName || live.contactPhone || live.orderCode;
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-inverse-surface relative pb-safe select-none">
-      {/* Top Turn-by-Turn Instruction Banner */}
+      {/* Top banner: điểm đến */}
       <div className="fixed top-0 inset-x-0 max-w-md mx-auto z-40 bg-inverse-surface/95 backdrop-blur-md pt-safe shadow-lg border-b border-white/10">
-        <div className="px-gutter py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-tertiary text-white flex items-center justify-center shadow-md">
-              <span className="material-symbols-outlined text-[32px]">turn_right</span>
+        <div className="px-gutter py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-12 h-12 rounded-2xl bg-tertiary text-white flex items-center justify-center shadow-md shrink-0">
+              <span className="material-symbols-outlined text-[28px]">location_on</span>
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="font-label-sm text-[11px] uppercase tracking-wider text-tertiary-fixed font-bold block">
-                Sau 150m nữa
+                Điểm đến cứu hộ
               </span>
-              <h2 className="font-headline-md text-headline-md text-white font-bold leading-tight">
-                Rẽ phải vào Nguyễn Trãi
+              <h2 className="font-headline-md text-[16px] text-white font-bold leading-tight line-clamp-2">
+                {live.addressText}
               </h2>
             </div>
           </div>
-
-          {/* Speed Indicator */}
-          <div className="flex flex-col items-center bg-white/10 px-2.5 py-1 rounded-xl">
-            <span className="font-data-metric-md text-[20px] text-white leading-none font-extrabold">
-              {speed}
-            </span>
-            <span className="text-[10px] text-white/70 uppercase">km/h</span>
-          </div>
+          <a
+            href={directionsUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="shrink-0 px-3 h-10 rounded-xl bg-white/10 text-white font-label-md font-bold flex items-center gap-1.5 active:scale-95"
+          >
+            <span className="material-symbols-outlined text-[18px]">directions</span>
+            Chỉ đường
+          </a>
         </div>
       </div>
 
-      {/* Live Map GPS Canvas */}
-      <div className="relative w-full h-[62vh] mt-20 overflow-hidden bg-surface-container">
-        <div
-          className="w-full h-full bg-cover bg-center filter brightness-95"
-          style={{ backgroundImage: `url('${ASSETS.mapTrackingLive}')` }}
+      {/* Bản đồ điểm đến */}
+      <div className="relative w-full h-[55vh] mt-20 overflow-hidden bg-surface-container">
+        <MapView
+          center={{ lat: live.lat, lng: live.lng }}
+          zoom={15}
+          markers={[{ lat: live.lat, lng: live.lng, label: customerName, tone: 'primary' }]}
+          className="w-full h-full"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/30 pointer-events-none"></div>
-
-        {/* Floating Route Info Pill */}
-        <div className="absolute top-4 left-4 z-20 flex items-center gap-2 bg-inverse-surface/90 backdrop-blur-md text-white px-3.5 py-2 rounded-full shadow-lg border border-white/10">
-          <span className="w-2.5 h-2.5 rounded-full bg-tertiary animate-ping"></span>
-          <span className="font-label-md text-label-md font-bold">Còn 850m</span>
-          <span className="text-white/60">•</span>
-          <span className="font-label-md text-label-md text-tertiary-fixed font-bold">~3 phút</span>
-        </div>
-
-        {/* Floating Recenter and Compass */}
-        <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
-          <button
-            onClick={() => setSpeed((prev) => (prev === 32 ? 38 : 32))}
-            className="w-10 h-10 rounded-full bg-inverse-surface/90 text-white flex items-center justify-center shadow-lg border border-white/10 active:scale-95"
-          >
-            <span className="material-symbols-outlined text-[20px]">explore</span>
-          </button>
-        </div>
-
-        {/* Mechanic moving marker */}
-        <div className="absolute top-[45%] left-[52%] -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-20">
-          <div className="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center shadow-xl ring-4 ring-primary/40 animate-pulse">
-            <span className="material-symbols-outlined text-[26px]">navigation</span>
-          </div>
-          <span className="mt-1 px-2 py-0.5 rounded-full bg-black/80 text-white text-[10px] font-bold">
-            Xe của bạn
-          </span>
-        </div>
       </div>
 
       {/* Customer Contact & Status Deck */}
       <div className="relative z-30 bg-surface-container-lowest rounded-t-[24px] -mt-6 p-gutter flex flex-col gap-space-md shadow-2xl">
         <div className="w-10 h-1 bg-surface-container-highest rounded-full self-center"></div>
 
-        {/* Customer Information Preview */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img
-              src={ASSETS.customerPortrait}
-              alt="Customer"
-              className="w-12 h-12 rounded-full object-cover shadow-sm border border-surface-container"
-            />
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h3 className="font-headline-md text-headline-md text-on-surface font-bold">
-                  {live?.contactName || 'Trần Thị Mai Lan'}
-                </h3>
-                <span className="px-1.5 py-0.2 rounded bg-tertiary-container text-on-tertiary text-[10px] font-bold">
-                  VIP
-                </span>
-              </div>
-              <p className="font-body-sm text-[12px] text-secondary mt-0.5">
-                {live ? `${live.serviceName} • ${live.orderCode}` : 'Honda Vision 2022 • 59-P1 888.88'}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              aria-hidden
+              className="w-12 h-12 rounded-full shrink-0 bg-primary-fixed text-on-primary-fixed flex items-center justify-center font-label-lg font-bold border border-surface-container"
+            >
+              {customerName.trim().charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <h3 className="font-headline-md text-headline-md text-on-surface font-bold truncate">{customerName}</h3>
+              <p className="font-body-sm text-[12px] text-secondary mt-0.5 truncate">
+                {live.serviceName} • {live.orderCode}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          {live.contactPhone && (
             <a
-              href="tel:0908123456"
-              className="w-11 h-11 rounded-full bg-primary text-white flex items-center justify-center shadow-md active:scale-95"
+              href={`tel:${live.contactPhone}`}
+              aria-label="Gọi khách"
+              className="w-11 h-11 rounded-full bg-primary text-white flex items-center justify-center shadow-md active:scale-95 shrink-0"
             >
               <span className="material-symbols-outlined text-[20px]">call</span>
             </a>
-            <button
-              onClick={() => toast('Đã gửi tin nhắn: "Tôi sắp đến nơi, cách 300m nữa nhé!"', 'success')}
-              className="w-11 h-11 rounded-full bg-surface-container text-on-surface flex items-center justify-center shadow-sm active:scale-95"
-            >
-              <span className="material-symbols-outlined text-[20px]">chat</span>
-            </button>
-          </div>
+          )}
         </div>
 
-        {/* Destination Target Location */}
+        {/* Ghi chú + ảnh hiện trường */}
         <div className="p-[15px] bg-surface-container-low rounded-xl flex items-start gap-2.5 border border-surface-container">
-          <span className="material-symbols-outlined text-primary text-[20px] shrink-0 mt-0.5">
-            location_on
-          </span>
-          <div>
-            <span className="font-label-sm text-[11px] text-secondary font-bold uppercase block">
-              Điểm đến cứu hộ
-            </span>
-            <span className="font-body-sm text-[13.5px] text-on-surface font-semibold block">
-              {live ? live.addressText : '242 Cống Quỳnh, P. Phạm Ngũ Lão, Q.1'}
-            </span>
-            <span className="font-body-sm text-[12px] text-primary mt-0.5 block">
-              Ghi chú: {live ? live.note || '—' : 'Xe Vision đỏ dựng trước cổng Circle K'}
-            </span>
-            {live?.photoUrls && live.photoUrls.length > 0 && (
+          <span className="material-symbols-outlined text-primary text-[20px] shrink-0 mt-0.5">edit_note</span>
+          <div className="min-w-0">
+            <span className="font-label-sm text-[11px] text-secondary font-bold uppercase block">Ghi chú của khách</span>
+            <span className="font-body-sm text-[13.5px] text-on-surface font-semibold block">{live.note || '—'}</span>
+            {live.photoUrls && live.photoUrls.length > 0 && (
               <div className="flex gap-2 overflow-x-auto mt-2">
                 {live.photoUrls.map((u) => (
                   <a key={u} href={u} target="_blank" rel="noreferrer" className="shrink-0">

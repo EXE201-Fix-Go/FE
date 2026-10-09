@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { listMyOrders, Order } from '../api/orders';
-import { apiConfigured } from '../api/client';
 import { ServerMessage } from './ServerMessage';
 import { ORDER_STATUS_LABEL, isTerminal } from '../domain/status';
 import { formatVND } from '../domain/money';
-import { SERVICES } from '../data';
 
 interface CustomerHistoryProps {
   onBackToHome: () => void;
@@ -24,22 +22,6 @@ function fmtDate(iso: string): string {
   return `${d.toLocaleDateString('vi-VN')} • ${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
-/** Dữ liệu mẫu cho bản demo không có backend (GitHub Pages). */
-const DEMO_ORDERS: Order[] = [
-  {
-    id: 'demo-1', orderCode: 'FG-241018-K2M9', status: 'COMPLETED', serviceId: 'tire-patch', serviceName: 'Vá xe lưu động',
-    extraServiceIds: [], addressText: '242 Cống Quỳnh, Q.1', photoUrls: [], lat: 10.77, lng: 106.69, callOutFee: 30000,
-    createdAt: '2024-10-18T15:45:00Z', partner: { id: 'p1', fullName: 'Nguyễn Văn Tuấn', phone: '0908123456' },
-    quote: null, payment: { id: 'pay1', amount: 120000, status: 'CONFIRMED', method: 'CASH' }, history: [],
-  },
-  {
-    id: 'demo-2', orderCode: 'FG-240805-Q7ZD', status: 'CANCELLED', serviceId: 'battery-jump', serviceName: 'Kích bình ắc quy',
-    extraServiceIds: [], addressText: '128 Nguyễn Trãi, Q.1', photoUrls: [], lat: 10.76, lng: 106.68, callOutFee: 30000,
-    createdAt: '2024-08-05T01:30:00Z', partner: { id: 'p2', fullName: 'Trần Đình Nam', phone: '0909000000' },
-    quote: null, payment: { id: 'pay2', amount: 30000, status: 'CONFIRMED', method: 'CASH' }, history: [],
-  },
-];
-
 /** Bảng đơn hàng thật của khách — dữ liệu từ backend (GET /orders). */
 export const CustomerHistoryScreen: React.FC<CustomerHistoryProps> = ({
   onBackToHome,
@@ -50,17 +32,13 @@ export const CustomerHistoryScreen: React.FC<CustomerHistoryProps> = ({
 
   const load = () => {
     setError(null);
-    if (!apiConfigured) {
-      setOrders(DEMO_ORDERS);
-      return;
-    }
     listMyOrders()
       .then(setOrders)
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Không tải được lịch sử.'));
   };
   useEffect(load, []);
 
-  const serviceName = (o: Order) => o.serviceName ?? SERVICES.find((s) => s.id === o.serviceId)?.name ?? o.serviceId;
+  const serviceName = (o: Order) => o.serviceName ?? o.serviceId;
   const amount = (o: Order) =>
     o.quote && o.quote.status === 'APPROVED' ? o.quote.totalAmount : o.payment ? o.payment.amount : o.callOutFee;
 

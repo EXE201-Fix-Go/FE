@@ -1,14 +1,11 @@
 import React, { useState } from 'react';
-import { ASSETS, DEFAULT_MECHANIC } from '../data';
 import { MapView, MapMarker } from './MapView';
 import { confirmDialog } from './notify';
 
 interface CustomerTrackingProps {
-  /** Demo: bấm để giả lập thợ tới nơi. Khi nối backend, App tự chuyển màn theo trạng thái. */
-  onArrivedAndQuote?: () => void;
   onCancel: () => void;
-  /** Dữ liệu thật từ backend (nếu có) — ghi đè thông tin mẫu. */
-  live?: {
+  /** Dữ liệu thật của đơn đang theo dõi (App tự chuyển màn theo trạng thái). */
+  live: {
     orderCode: string;
     status: string;
     statusLabel: string;
@@ -29,59 +26,27 @@ const STEPS = [
   { label: 'Sửa chữa', icon: 'build' },
 ];
 
-export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
-  onArrivedAndQuote,
-  onCancel,
-  live,
-}) => {
-  const mechanicName = live?.mechanicName || DEFAULT_MECHANIC.name;
-  const mechanicPhone = live?.mechanicPhone || DEFAULT_MECHANIC.phone;
-  const arrived = live ? live.status !== 'ASSIGNED' : false;
+export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({ onCancel, live }) => {
+  const mechanicName = live.mechanicName || 'Thợ Fix&Go';
+  const mechanicPhone = live.mechanicPhone || null;
+  const arrived = live.status !== 'ASSIGNED';
 
   // Ghim thật trên bản đồ: khách + thợ (nếu backend đã có toạ độ).
   const mapCenter =
-    live?.customerLat != null && live?.customerLng != null ? { lat: live.customerLat, lng: live.customerLng } : null;
+    live.customerLat != null && live.customerLng != null ? { lat: live.customerLat, lng: live.customerLng } : null;
   const mapMarkers: MapMarker[] = [];
-  if (live?.customerLat != null && live?.customerLng != null)
+  if (live.customerLat != null && live.customerLng != null)
     mapMarkers.push({ lat: live.customerLat, lng: live.customerLng, label: 'Vị trí của bạn', tone: 'primary' });
-  if (live?.partnerLat != null && live?.partnerLng != null)
+  if (live.partnerLat != null && live.partnerLng != null)
     mapMarkers.push({ lat: live.partnerLat, lng: live.partnerLng, label: `${mechanicName} (thợ)`, tone: 'tertiary' });
   // Bước hiện tại trên thanh tiến trình theo trạng thái thật (§7.1)
-  const stepIndex = !live
-    ? 1
-    : live.status === 'ASSIGNED'
-    ? 1
-    : ['ARRIVED', 'CHECKING', 'WAITING_FOR_APPROVAL', 'APPROVED'].includes(live.status)
-    ? 2
-    : 3;
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState<Array<{ sender: 'mechanic' | 'customer'; text: string }>>([
-    {
-      sender: 'mechanic',
-      text: 'Chào bạn, tôi đang qua ngã sáu Phù Đổng, tầm 6-7 phút nữa có mặt nhé!',
-    },
-  ]);
-  const [chatInput, setChatInput] = useState('');
+  const stepIndex =
+    live.status === 'ASSIGNED'
+      ? 1
+      : ['ARRIVED', 'CHECKING', 'WAITING_FOR_APPROVAL', 'APPROVED'].includes(live.status)
+      ? 2
+      : 3;
   const [isRotating, setIsRotating] = useState(false);
-
-  const handleSendChat = (textToSend?: string) => {
-    const text = textToSend || chatInput.trim();
-    if (!text) return;
-
-    setChatMessages((prev) => [...prev, { sender: 'customer', text }]);
-    setChatInput('');
-    setIsChatOpen(true);
-
-    setTimeout(() => {
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          sender: 'mechanic',
-          text: 'Dạ tôi thấy rồi, tôi đang chạy xe tới ngay đây!',
-        },
-      ]);
-    }, 900);
-  };
 
   const handleRecenter = () => {
     setIsRotating(true);
@@ -96,25 +61,19 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
         {mapCenter ? (
           <MapView center={mapCenter} zoom={14} markers={mapMarkers} className="w-full h-full" />
         ) : (
-          <div
-            className="w-full h-full bg-cover bg-center transition-transform duration-700"
-            style={{ backgroundImage: `url('${ASSETS.mapTrackingLive}')` }}
-          />
+          <div className="w-full h-full flex items-center justify-center text-secondary">
+            <span className="material-symbols-outlined text-[40px]">location_searching</span>
+          </div>
         )}
 
-        {/* Floating Top ETA Pill Card */}
+        {/* Floating Top status pill */}
         <div className="absolute top-4 inset-x-margin px-4 flex items-center justify-between z-[500]">
           <div className="bg-surface-container-lowest/95 backdrop-blur-md px-space-md py-space-xs rounded-full shadow-lg flex items-center gap-space-sm border border-surface-container">
             <span className="relative flex h-3 w-3">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-tertiary opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-tertiary"></span>
             </span>
-            <div className="flex items-baseline gap-1">
-              <span className="font-label-md text-label-md text-on-surface font-bold">
-                {live ? live.statusLabel : 'Đến trong 6 - 8 phút'}
-              </span>
-              <span className="font-body-sm text-[12px] text-secondary">• 1.2 km</span>
-            </div>
+            <span className="font-label-md text-label-md text-on-surface font-bold">{live.statusLabel}</span>
           </div>
 
           <button
@@ -132,7 +91,7 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
         <div className="absolute bottom-6 left-4 bg-surface-container-lowest/90 backdrop-blur-sm px-space-sm py-1 rounded-lg shadow-sm flex items-center gap-1 z-[500]">
           <span className="material-symbols-outlined text-primary text-[16px]">location_on</span>
           <span className="font-label-sm text-[12px] text-on-surface truncate max-w-[210px] font-medium">
-            {live ? live.address : '242 Cống Quỳnh, Q.1'}
+            {live.address}
           </span>
         </div>
       </div>
@@ -142,50 +101,23 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
         {/* Grabber Indicator */}
         <div className="w-12 h-1.5 bg-surface-container-high rounded-full self-center"></div>
 
-        {/* Next Step Shortcut Button (demo) / Live status line */}
-        {onArrivedAndQuote ? (
-          <button
-            onClick={onArrivedAndQuote}
-            className="w-full py-2.5 px-3 rounded-xl bg-tertiary-container text-on-tertiary font-label-md text-[13.5px] font-bold flex items-center justify-center gap-2 shadow-md active:scale-98 transition-transform"
-          >
-            <span className="material-symbols-outlined text-[20px]">build_circle</span>
-            <span>Thợ Tuấn đã đến nơi! Bấm để xem Biên bản &amp; Báo giá minh bạch →</span>
-          </button>
-        ) : (
-          live && (
-            <div className="w-full py-2.5 px-[15px] rounded-xl bg-surface-container flex items-center justify-between gap-2">
-              <span className="font-body-sm text-on-surface-variant flex items-center gap-2">
-                <span className="material-symbols-outlined text-[18px] text-primary animate-pulse">sync</span>
-                {live.statusLabel}
-              </span>
-              <span className="font-label-sm text-secondary">{live.orderCode}</span>
-            </div>
-          )
-        )}
+        {/* Live status line */}
+        <div className="w-full py-2.5 px-[15px] rounded-xl bg-surface-container flex items-center justify-between gap-2">
+          <span className="font-body-sm text-on-surface-variant flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px] text-primary animate-pulse">sync</span>
+            {live.statusLabel}
+          </span>
+          <span className="font-label-sm text-secondary">{live.orderCode}</span>
+        </div>
 
         {/* Main Live Dispatch Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="font-label-sm text-[11px] text-primary uppercase tracking-wider font-bold">
-              {arrived ? 'Thợ đang xử lý tại chỗ' : 'Đang khẩn cấp di chuyển'}
-            </span>
-            <h2 className="font-headline-lg-mobile text-headline-lg-mobile text-on-surface flex items-baseline gap-1 font-bold">
-              {live && arrived ? (
-                live.statusLabel
-              ) : (
-                <>
-                  7 phút <span className="font-body-md text-body-md text-secondary font-normal">(1.2 km)</span>
-                </>
-              )}
-            </h2>
-          </div>
-          <div className="flex flex-col items-end">
-            <div className="bg-tertiary-container text-on-tertiary px-2.5 py-1 rounded-full flex items-center gap-1 shadow-xs">
-              <span className="material-symbols-outlined text-[15px]">verified</span>
-              <span className="font-label-sm text-[11px] font-bold">{live ? live.statusLabel : 'Đã nhận đơn'}</span>
-            </div>
-            <span className="font-body-sm text-[11px] text-secondary mt-1">Cập nhật 5s trước</span>
-          </div>
+        <div className="flex flex-col">
+          <span className="font-label-sm text-[11px] text-primary uppercase tracking-wider font-bold">
+            {arrived ? 'Thợ đang xử lý tại chỗ' : 'Thợ đang di chuyển tới bạn'}
+          </span>
+          <h2 className="font-headline-lg-mobile text-headline-lg-mobile text-on-surface font-bold">
+            {live.statusLabel}
+          </h2>
         </div>
 
         {/* Four-Step Status Journey Tracker */}
@@ -230,63 +162,24 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
 
         {/* Mechanic Profile Card */}
         <div className="bg-surface-container-lowest rounded-xl p-[15px] shadow-[0_2px_12px_rgba(11,28,48,0.06)] flex items-center gap-space-md border border-surface-container">
-          <div className="relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 shadow-sm bg-surface-container">
-            <img
-              alt={`Thợ cứu hộ Fix&Go ${mechanicName}`}
-              className="w-full h-full object-cover"
-              src={DEFAULT_MECHANIC.avatar}
-            />
-            <div className="absolute bottom-0 inset-x-0 bg-primary/90 text-on-primary text-center font-label-sm text-[9px] py-0.5 font-bold">
-              TOP THỢ
-            </div>
+          <div
+            aria-hidden
+            className="w-16 h-16 rounded-xl flex-shrink-0 bg-primary-fixed text-on-primary-fixed flex items-center justify-center font-headline-md text-[24px] font-bold"
+          >
+            {mechanicName.trim().charAt(0).toUpperCase()}
           </div>
-
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <h3 className="font-headline-md text-[17px] leading-tight text-on-surface truncate font-bold">
-                {mechanicName}
-              </h3>
-              <span
-                className="material-symbols-outlined text-tertiary text-[18px]"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-                title="Đã xác minh nghiệp vụ"
-              >
-                check_circle
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2 mt-1">
-              <div className="flex items-center text-primary font-label-md text-label-md">
-                <span
-                  className="material-symbols-outlined text-[16px] text-[#eab308]"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  star
-                </span>
-                <span className="ml-0.5 text-on-surface font-bold">4.9</span>
-              </div>
-              <span className="text-secondary text-[12px] font-body-sm">(1.420 đánh giá)</span>
-            </div>
-
-            {/* Vehicle Badge */}
-            <div className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-0.5 bg-surface-container rounded-md">
-              <span className="material-symbols-outlined text-on-surface-variant text-[14px]">
-                motorcycle
-              </span>
-              <span className="font-label-sm text-[12px] text-on-surface-variant font-bold">
-                {DEFAULT_MECHANIC.vehicle}
-              </span>
-              <span className="text-secondary text-[11px]">•</span>
-              <span className="font-label-sm text-[12px] text-primary tracking-wide font-bold">
-                {DEFAULT_MECHANIC.licensePlate}
-              </span>
-            </div>
+            <h3 className="font-headline-md text-[17px] leading-tight text-on-surface truncate font-bold">
+              {mechanicName}
+            </h3>
+            {mechanicPhone && (
+              <span className="font-body-sm text-[12px] text-secondary">{mechanicPhone}</span>
+            )}
           </div>
         </div>
 
-        {/* Primary & Secondary Rapid Action Triggers */}
-        <div className="grid grid-cols-2 gap-space-sm pt-space-xs">
-          {/* Call Button */}
+        {/* Call button */}
+        {mechanicPhone && (
           <a
             aria-label="Gọi điện thoại trực tiếp cho thợ cứu hộ"
             className="h-[52px] bg-primary hover:bg-primary-container text-on-primary rounded-xl flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all font-bold"
@@ -300,68 +193,14 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
             </span>
             <span className="font-label-lg text-label-lg">Gọi cho thợ</span>
           </a>
+        )}
 
-          {/* Chat Trigger Button */}
-          <button
-            aria-label="Gửi tin nhắn hoặc thông báo nhanh cho thợ"
-            onClick={() => setIsChatOpen(true)}
-            className="h-[52px] bg-surface-container-high hover:bg-surface-container-highest text-on-surface rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all font-bold"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[22px]">chat</span>
-            <span className="font-label-lg text-label-lg">Nhắn tin</span>
-          </button>
-        </div>
-
-        {/* Quick Preset Message Pills */}
-        <div className="flex flex-col gap-1.5">
-          <span className="font-label-sm text-[11px] text-secondary">Tin nhắn nhanh vị trí:</span>
-          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar text-nowrap">
-            <button
-              className="px-3 py-1.5 bg-surface-container rounded-full font-body-sm text-[12px] text-on-surface hover:bg-primary-fixed active:scale-95 transition-colors"
-              onClick={() => handleSendChat('🏪 Tôi đang đứng trước Circle K')}
-              type="button"
-            >
-              🏪 Tôi đang đứng trước Circle K
-            </button>
-            <button
-              className="px-3 py-1.5 bg-surface-container rounded-full font-body-sm text-[12px] text-on-surface hover:bg-primary-fixed active:scale-95 transition-colors"
-              onClick={() => handleSendChat('🌧️ Tôi mặc áo mưa màu xanh')}
-              type="button"
-            >
-              🌧️ Tôi mặc áo mưa màu xanh
-            </button>
-            <button
-              className="px-3 py-1.5 bg-surface-container rounded-full font-body-sm text-[12px] text-on-surface hover:bg-primary-fixed active:scale-95 transition-colors"
-              onClick={() => handleSendChat('🚦 Ngay góc ngã tư đèn đỏ')}
-              type="button"
-            >
-              🚦 Ngay góc ngã tư đèn đỏ
-            </button>
-          </div>
-        </div>
-
-        {/* Safety & Security Reminder Banner */}
-        <div className="bg-secondary-container/40 rounded-xl p-[15px] flex items-start gap-space-sm border border-secondary-container/60">
-          <div className="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container flex-shrink-0 mt-0.5">
-            <span className="material-symbols-outlined text-[18px]">security</span>
-          </div>
-          <div className="flex-1">
-            <h4 className="font-label-md text-[13px] text-on-surface font-bold">Lưu ý an toàn nhận diện</h4>
-            <p className="font-body-sm text-[12px] text-on-secondary-container leading-relaxed">
-              Kiểm tra đúng biển số xe{' '}
-              <strong className="text-on-surface font-bold">{DEFAULT_MECHANIC.licensePlate}</strong> và áo đồng
-              phục gắn logo Fix&amp;Go màu cam đậm trước khi bàn giao xe.
-            </p>
-          </div>
-        </div>
-
-        {/* Emergency Secondary Row / Cancel Support Link */}
-        <div className="flex items-center justify-between pt-1 text-center">
+        {/* Cancel */}
+        <div className="flex items-center justify-start pt-1">
           <button
             onClick={async () => {
               const ok = await confirmDialog(
-                `Thợ ${mechanicName} đang trên đường tới. Bạn có chắc muốn hủy chuyến cứu hộ này?`,
+                `Thợ ${mechanicName} đang xử lý đơn này. Bạn có chắc muốn hủy chuyến cứu hộ?`,
                 { okText: 'Hủy chuyến', cancelText: 'Giữ lại', danger: true }
               );
               if (ok) onCancel();
@@ -371,73 +210,8 @@ export const CustomerTrackingScreen: React.FC<CustomerTrackingProps> = ({
           >
             Hủy yêu cầu cứu hộ
           </button>
-
-          <div className="flex items-center gap-1 text-tertiary">
-            <span className="material-symbols-outlined text-[16px]">verified_user</span>
-            <span className="font-label-sm text-[12px]">Bảo hiểm sửa chữa 30 ngày</span>
-          </div>
         </div>
       </div>
-
-      {/* Interactive Modal: Chat Bottom Sheet */}
-      {isChatOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex flex-col justify-end p-0">
-          <div className="bg-surface-container-lowest rounded-t-2xl p-space-md flex flex-col gap-space-sm max-h-[75vh] w-full max-w-md mx-auto shadow-2xl animate-in slide-in-from-bottom duration-200">
-            <div className="flex items-center justify-between pb-2 border-b border-surface-container">
-              <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full bg-tertiary animate-pulse"></div>
-                <span className="font-label-lg text-label-lg text-on-surface font-bold">
-                  Chat trực tiếp với Tuấn
-                </span>
-              </div>
-              <button
-                onClick={() => setIsChatOpen(false)}
-                className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface"
-                type="button"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
-
-            {/* Dialogue History */}
-            <div className="flex flex-col gap-2 overflow-y-auto py-2 min-h-[140px] max-h-[240px]">
-              {chatMessages.map((msg, index) => (
-                <div
-                  key={index}
-                  className={`max-w-[80%] p-space-sm rounded-xl font-body-sm text-[13.5px] ${
-                    msg.sender === 'customer'
-                      ? 'self-end bg-primary text-on-primary rounded-tr-none'
-                      : 'self-start bg-surface-container text-on-surface rounded-tl-none'
-                  }`}
-                >
-                  {msg.text}
-                </div>
-              ))}
-            </div>
-
-            {/* Quick Text Box */}
-            <div className="flex items-center gap-2 pt-1 border-t border-surface-container">
-              <input
-                className="flex-1 h-11 bg-surface-container rounded-xl px-space-sm text-body-sm text-on-surface focus:outline-none focus:bg-surface-container-high"
-                placeholder="Nhập tin nhắn cho thợ..."
-                type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSendChat();
-                }}
-              />
-              <button
-                onClick={() => handleSendChat()}
-                className="w-11 h-11 bg-primary text-on-primary rounded-xl flex items-center justify-center active:scale-95 transition-transform shadow-sm"
-                type="button"
-              >
-                <span className="material-symbols-outlined text-[20px]">send</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
