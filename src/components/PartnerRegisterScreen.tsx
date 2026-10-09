@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useCatalog } from '../catalog/CatalogProvider';
 import { RegisterPartnerInput } from '../api/partner';
-import { uploadKycDocument } from '../api/uploads';
+import { DocKey, DocUploadError, UploadedCache, uploadKycSet } from '../domain/kycUpload';
 
 interface PartnerRegisterScreenProps {
   phone?: string;
@@ -10,18 +10,13 @@ interface PartnerRegisterScreenProps {
   onSubmitted: (input: RegisterPartnerInput) => Promise<void> | void;
 }
 
-type DocKey = 'front' | 'back' | 'selfie';
-const DOC_TYPE: Record<DocKey, 'ID_FRONT' | 'ID_BACK' | 'SELFIE'> = { front: 'ID_FRONT', back: 'ID_BACK', selfie: 'SELFIE' };
-const DOC_NAME: Record<DocKey, string> = { front: 'mặt trước CCCD', back: 'mặt sau CCCD', selfie: 'ảnh chân dung' };
-const DOC_ORDER: DocKey[] = ['front', 'back', 'selfie'];
-
 interface PickedDoc {
   file: File;
   preview: string;
 }
 
 /** Ô tải ảnh giấy tờ KYC — chụp thật (mobile mở camera), xem trước, đánh dấu đã tải. */
-const DocUpload: React.FC<{
+export const DocUpload: React.FC<{
   label: string;
   hint: string;
   icon: string;
@@ -117,7 +112,7 @@ export const PartnerRegisterScreen: React.FC<PartnerRegisterScreenProps> = ({
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   /** Khóa đã tải xong theo từng ảnh: gửi lại sau lỗi mạng không tải lại ảnh đã lên. */
-  const uploaded = useRef<Partial<Record<DocKey, { file: File; key: string }>>>({});
+  const uploaded = useRef<UploadedCache>({});
   const previews = useRef<string[]>([]);
 
   useEffect(
@@ -150,34 +145,20 @@ export const PartnerRegisterScreen: React.FC<PartnerRegisterScreenProps> = ({
     setError(null);
     try {
       // Ảnh KYC lên kho RIÊNG TƯ của backend; chỉ khóa trả về mới được gửi kèm hồ sơ (BR06).
-      const keys: Partial<Record<DocKey, string>> = {};
-      let done = 0;
-      setProgress(0);
-      for (const k of DOC_ORDER) {
-        const picked = docs[k]!;
-        const cached = uploaded.current[k];
-        if (cached && cached.file === picked.file) {
-          keys[k] = cached.key;
-        } else {
-          try {
-            const key = await uploadKycDocument(picked.file);
-            uploaded.current[k] = { file: picked.file, key };
-            keys[k] = key;
-          } catch (e: unknown) {
-            setDocError((er) => ({ ...er, [k]: `Không tải được ${DOC_NAME[k]}. Kiểm tra mạng rồi thử lại.` }));
-            throw e;
-          }
-        }
-        setProgress(++done);
-      }
+      const documents = await uploadKycSet(
+        { front: docs.front!.file, back: docs.back!.file, selfie: docs.selfie!.file },
+        uploaded.current,
+        setProgress
+      );
       await onSubmitted({
         fullName: name.trim(),
         partnerType: shopType === 'shop' ? 'SHOP' : 'INDIVIDUAL',
         shopName: shopType === 'shop' ? `Tiệm của ${name.trim()}` : undefined,
         serviceCodes: skills,
-        documents: DOC_ORDER.map((k) => ({ documentType: DOC_TYPE[k], storageKey: keys[k]! })),
+        documents,
       });
     } catch (e: unknown) {
+      if (e instanceof DocUploadError) setDocError((er) => ({ ...er, [e.doc]: e.message }));
       setError(e instanceof Error ? e.message : 'Không gửi được hồ sơ.');
       setSubmitting(false);
     }

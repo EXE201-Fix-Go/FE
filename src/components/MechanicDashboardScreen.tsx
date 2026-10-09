@@ -13,6 +13,8 @@ export interface MechanicDashboardLive {
   offers: Offer[];
   jobs: Offer[];
   error?: string | null;
+  /** Có khi hồ sơ cần nộp/nộp lại giấy tờ: hiện nút mở màn bổ sung. */
+  onFixDocuments?: () => void;
   onAccept: (assignmentId: string) => Promise<void>;
   onDecline: (assignmentId: string) => Promise<void>;
   onOpenJob: (job: Offer) => void;
@@ -156,6 +158,16 @@ export const MechanicDashboardScreen: React.FC<MechanicDashboardProps> = ({
       <main className="flex flex-col relative w-full pt-20 px-gutter gap-space-md mt-2">
         {(live.error || liveError) && (
           <ServerMessage variant="error">{live.error || liveError}</ServerMessage>
+        )}
+        {live.onFixDocuments && (
+          <button
+            type="button"
+            onClick={live.onFixDocuments}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-tertiary font-label-md font-bold text-on-tertiary shadow-sm transition-transform duration-150 ease-out active:scale-[0.98]"
+          >
+            <span className="material-symbols-outlined text-[20px]">upload_file</span>
+            {live.profile?.verificationStatus === 'REJECTED' ? 'Gửi lại giấy tờ' : 'Bổ sung giấy tờ'}
+          </button>
         )}
         {live.jobs.length > 0 && (
           <section className="bg-surface-container-lowest rounded-xl p-[15px] shadow-sm border border-tertiary/30 flex flex-col gap-2">

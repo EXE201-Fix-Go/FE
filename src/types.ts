@@ -16,6 +16,7 @@ export type ScreenId =
   | 'mechanic_quote_editor'
   | 'mechanic_quote_create'
   | 'partner_register'
+  | 'partner_documents'
   | 'shop_owner';
 
 export type UserRole = 'customer' | 'mechanic';
